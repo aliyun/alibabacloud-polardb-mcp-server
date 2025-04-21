@@ -1,0 +1,24 @@
+# Python-generated files
+polardb-mysql-mcp-server/__pycache__/
+polardb-mysql-mcp-server/*.py[oc]
+polardb-mysql-mcp-server/build/
+polardb-mysql-mcp-server/dist/
+polardb-mysql-mcp-server/wheels/
+polardb-mysql-mcp-server/*.egg-info
+
+# Virtual environments
+polardb-mysql-mcp-server/.venv
+polardb-mysql-mcp-server/.env
+polardb-mysql-mcp-server/.test/*
+
+polardb-postgresql-mcp-server/__pycache__/
+polardb-postgresql-mcp-server/*.py[oc]
+polardb-postgresql-mcp-server/build/
+polardb-postgresql-mcp-server/dist/
+polardb-postgresql-mcp-server/wheels/
+polardb-postgresql-mcp-server/*.egg-info
+
+# Virtual environments
+polardb-postgresql-mcp-server/.venv
+polardb-postgresql-mcp-server/.env
+polardb-postgresql-mcp-server/.test/*

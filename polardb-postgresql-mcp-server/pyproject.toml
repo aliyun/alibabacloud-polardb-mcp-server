@@ -1,0 +1,11 @@
+[project]
+name = "polardb-postgresql-mcp-server"
+version = "0.0.1"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "psycopg>=3.1.0",
+    "sqlparse>=0.4.4"
+]
