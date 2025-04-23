@@ -12,6 +12,10 @@ from pydantic import AnyUrl
 from dotenv import load_dotenv
 import asyncio
 import sqlparse
+enable_write = False
+enable_update = False
+enable_insert = False
+enable_ddl = False
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
@@ -126,11 +130,37 @@ async def list_tools() -> list[Tool]:
 
 
 def get_sql_operation_type(sql):
+    """
+    get sql operation type
+    :param sql: input sql
+    :return: return sql operation type ('INSERT', 'DELETE', 'UPDATE', 'DDL',  or 'OTHER')
+    """
     parsed = sqlparse.parse(sql)
     if not parsed:
-        return "UNKNOWN"
-    stmt = parsed[0]
-    return stmt.get_type().upper()
+        return 'OTHER'  #parse sql failed
+
+    # get first statement
+    statement = parsed[0]
+    
+    # get first keyword
+    first_token = statement.token_first(skip_ws=True, skip_cm=True)
+    if not first_token:
+        return 'OTHER'
+
+    keyword = first_token.value.upper()  # convert to upper case for uniform comparison
+
+    # judge sql type
+    if keyword == 'INSERT':
+        return 'INSERT'
+    elif keyword == 'DELETE':
+        return 'DELETE'
+    elif keyword == 'UPDATE':
+        return 'UPDATE'
+    elif keyword in ('CREATE', 'ALTER', 'DROP', 'TRUNCATE'):
+        return 'DDL'
+    else:
+        return 'OTHER'
+
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Execute SQL commands."""
@@ -145,21 +175,35 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         raise ValueError("Query is required")
     operation_type = get_sql_operation_type(query)
     logger.info(f"SQL operation type: {operation_type}")
-    try:
-        with connect(**config) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query)
-                if cursor.description is not None:
-                    columns = [desc[0] for desc in cursor.description]
-                    rows = cursor.fetchall()
-                    result = [",".join(map(str, row)) for row in rows]
-                    return [TextContent(type="text", text="\n".join([",".join(columns)] + result))]
-                else:
-                    conn.commit()
-                    return [TextContent(type="text", text=f"Query executed successfully. Rows affected: {cursor.rowcount}")]
-    except Error as e:
-        logger.error(f"Error executing SQL '{query}': {e}")
-        return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
+    if operation_type == 'INSERT' and not enable_insert:
+        logger.info(f"INSERT operation is not enabled,please check POLARDB_MYSQL_ENABLE_INSERT")
+        return [TextContent(type="text", text=f"INSERT operation is not enabled in current tool")]
+    elif operation_type == 'UPDATE' and not enable_update:
+        logger.info(f"UPDATE operation is not enabled,please check POLARDB_MYSQL_ENABLE_UPDATE")
+        return [TextContent(type="text", text=f"UPDATE operation is not enabled in current tool")]
+    elif operation_type == 'DELETE' and not enable_write:
+        logger.info(f"DELETE operation is not enabled,please check POLARDB_MYSQL_ENABLE_WRITE")
+        return [TextContent(type="text", text=f"DELETE operation is not enabled in current tool")]
+    elif operation_type == 'DDL' and not enable_ddl:
+        logger.info(f"DDL operation is not enabled,please check POLARDB_MYSQL_ENABLE_DDL")
+        return [TextContent(type="text", text=f"DDL operation is not enabled in current tool")] 
+    else:   
+        logger.info(f"will Executing SQL: {query}")
+        try:
+            with connect(**config) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query)
+                    if cursor.description is not None:
+                        columns = [desc[0] for desc in cursor.description]
+                        rows = cursor.fetchall()
+                        result = [",".join(map(str, row)) for row in rows]
+                        return [TextContent(type="text", text="\n".join([",".join(columns)] + result))]
+                    else:
+                        conn.commit()
+                        return [TextContent(type="text", text=f"Query executed successfully. Rows affected: {cursor.rowcount}")]
+        except Error as e:
+            logger.error(f"Error executing SQL '{query}': {e}")
+            return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
 
 
 
@@ -213,9 +257,18 @@ async def stdio_main():
             logger.error(f"Server error: {str(e)}", exc_info=True)
             raise
 
-
+def get_bool_env(var_name: str, default: bool = False) -> bool:
+    value = os.getenv(var_name)
+    if value is None:
+        return default
+    return value.lower() in ['true', '1', 't', 'y', 'yes']
 if __name__ == "__main__":
     load_dotenv()
+    enable_write = get_bool_env("POLARDB_MYSQL_ENABLE_WRITE")
+    enable_update = get_bool_env("POLARDB_MYSQL_ENABLE_UPDATE")
+    enable_insert = get_bool_env("POLARDB_MYSQL_ENABLE_INSERT")
+    enable_ddl = get_bool_env("POLARDB_MYSQL_ENABLE_DDL")
+    logger.info(f"enable_write: {enable_write}, enable_update: {enable_update}, enable_insert: {enable_insert}, enable_ddl: {enable_ddl}")
     if os.getenv("RUN_MODE")=="stdio":
         asyncio.run(stdio_main())
     else:

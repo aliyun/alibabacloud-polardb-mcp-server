@@ -9,3 +9,4 @@ polardb-mysql-mcp-server/*.egg-info
 # Virtual environments
 polardb-mysql-mcp-server/.venv
 polardb-mysql-mcp-server/.env
+polardb-mysql-mcp-server/.test/*
