@@ -213,16 +213,8 @@ def get_sql_operation_type(sql):
         return 'DDL'
     else:
         return 'OTHER'
-
-@app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    """Execute SQL commands."""
+def execute_sql(arguments: str) -> str:
     config = get_db_config()
-    logger.info(f"Calling tool: {name} with arguments: {arguments}")
-    
-    if name != "execute_sql":
-        raise ValueError(f"Unknown tool: {name}")
-    
     query = arguments.get("query")
     if not query:
         raise ValueError("Query is required")
@@ -258,6 +250,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         except Error as e:
             logger.error(f"Error executing SQL '{query}': {e}")
             return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
+@app.call_tool()
+async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    logger.info(f"Calling tool: {name} with arguments: {arguments}")
+    if name == "execute_sql":
+        return execute_sql(arguments)
+    else:
+        raise ValueError(f"Unknown tool: {name}")
+   
 
 
 
