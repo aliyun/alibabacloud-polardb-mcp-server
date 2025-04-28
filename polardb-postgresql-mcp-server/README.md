@@ -37,8 +37,7 @@ PolarDB MySQL MCP Server
 * polardb-postgresql://{schema}/{table}/data:  get data from the table,default limit 50 rows  
 # Usage
 ## Cursor 
-1. set RUN_MODE=stdio and other env variables in .env file  
-2. config for mcp.json  
+1. config for mcp.json
 ```json
 {
   "mcpServers": {
@@ -49,7 +48,19 @@ PolarDB MySQL MCP Server
         "/xxxx/polardb_mcp_server/polardb-postgresql-mcp-server",
         "run",
         "server.py"
-      ]
+      ],
+      "env": {
+        "POLARDB_POSTGRESQL_HOST": "127.0.0.1",
+        "POLARDB_POSTGRESQ_PORT": "15001",
+        "POLARDB_POSTGRESQ_USER": "xxxx",
+        "POLARDB_POSTGRESQL_PASSWORD": "xxx",
+        "POLARDB_POSTGRESQL_DBNAME": "xxx",
+        "RUN_MODE": "stdio",
+        "POLARDB_POSTGRESQL_ENABLE_UPDATE": "false",
+        "POLARDB_POSTGRESQL_ENABLE_UPDATE": "false",
+        "POLARDB_POSTGRESQL_ENABLE_INSER": "false",
+        "POLARDB_POSTGRESQL_ENABLE_DDL": "false"
+      }
     }
   }
 }

@@ -36,8 +36,7 @@ PolarDB MySQL MCP Server
 * polardb-mysql://{table}/data:  get data from the table,default limit 50 rows  
 # Usage
 ## Cursor 
-1. set RUN_MODE=stdio and other env variables in .env file  
-2. config for mcp.json  
+1. config for mcp.json  
 ```json
 {
   "mcpServers": {
@@ -48,7 +47,19 @@ PolarDB MySQL MCP Server
         "/xxxx/polardb_mcp_server/polardb-mysql-mcp-server",
         "run",
         "server.py"
-      ]
+      ],
+      "env": {
+        "POLARDB_MYSQL_HOST": "127.0.0.1",
+        "POLARDB_MYSQL_PORT": "15001",
+        "POLARDB_MYSQL_USER": "xxxx",
+        "POLARDB_MYSQL_PASSWORD": "xxx",
+        "POLARDB_MYSQL_DATABASE": "xxx",
+        "RUN_MODE": "stdio",
+        "POLARDB_MYSQL_ENABLE_UPDATE": "false",
+        "POLARDB_MYSQL_ENABLE_UPDATE": "false",
+        "POLARDB_MYSQL_ENABLE_INSER": "false",
+        "POLARDB_MYSQL_ENABLE_DDL": "false"
+      }
     }
   }
 }
@@ -59,3 +70,4 @@ PolarDB MySQL MCP Server
 2. cd polardb_mcp_server/polardb-mysql-mcp-server && uv run server.py  
 3. Set Remote Server  
 ![set remote server](./images/11.jpg)
+
