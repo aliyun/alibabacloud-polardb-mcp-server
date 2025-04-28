@@ -20,8 +20,8 @@ PolarDB MySQL MCP Server
 * SSE_BIND_PORT: The port to bind for SSE mode  
 * RUN_MODE: The run mode(sse|stdio),(default:stdio)  
 # Build and Run
-  git clone <git@gitlab.alibaba-inc.com>:rds_proxy/polardb_mcp_server.git  
-  cd polardb_mcp_server/polardb-postgresql-mcp-server  
+  git clone https://github.com/aliyun/alibabacloud-polardb-mcp-server.git  
+  cd alibabacloud-polardb-mcp-server/polardb-postgresql-mcp-server  
   uv venv  
   source .venv/bin/activate  
   cp .env_example .env #set env file with your database information  
@@ -45,7 +45,7 @@ PolarDB MySQL MCP Server
       "command": "uv",
       "args": [
         "--directory",
-        "/xxxx/polardb_mcp_server/polardb-postgresql-mcp-server",
+        "/xxxx/alibabacloud-polardb-mcp-server/polardb-postgresql-mcp-server",
         "run",
         "server.py"
       ],
