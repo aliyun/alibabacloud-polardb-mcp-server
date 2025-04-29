@@ -314,7 +314,7 @@ def get_bool_env(var_name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.lower() in ['true', '1', 't', 'y', 'yes']
-if __name__ == "__main__":
+def main():
     load_dotenv()
     enable_write = get_bool_env("POLARDB_MYSQL_ENABLE_WRITE")
     enable_update = get_bool_env("POLARDB_MYSQL_ENABLE_UPDATE")
@@ -327,3 +327,6 @@ if __name__ == "__main__":
         bind_host = os.getenv("SSE_BIND_HOST")
         bind_port = int(os.getenv("SSE_BIND_PORT"))
         sse_main(bind_host,bind_port)
+
+if __name__ == "__main__":
+    main()
