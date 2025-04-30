@@ -29,10 +29,8 @@ PolarDB MySQL MCP Server
 # Components
 ## Tools
 * execute_sql: execute sql  
-* polar4ai_create_models: create AI models using Polar4ai syntax. Please ensure that the PolarDB AI node has been activated in the current database. For usage instructions, please refer to: https://help.aliyun.com/zh/polardb/polardb-for-mysql/user-guide/polardb-for-ai/?spm=a2c4g.11186623.help-menu-2249963.d_5_25.5cef3367txDrU2&scm=20140722.H_439225._.OR_help-T_cn~zh-V_1
 ## Resources
 * polardb-mysql://tables: List all tables for PolarDB MySQL in the current database  
-* polardb-mysql://models: List all AI models for PolarDB MySQL AI node in the current database 
 ## Resource Templates
 * polardb-mysql://{table}/field: get the name,type and comment of the field in the table  
 * polardb-mysql://{table}/data:  get data from the table,default limit 50 rows  
