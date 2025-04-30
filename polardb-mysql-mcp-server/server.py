@@ -99,11 +99,6 @@ async def read_resource(uri: AnyUrl) -> str:
                     rows = cursor.fetchall()
                     result = [row[0] for row in rows]
                     return "\n".join(result)
-                elif len(parts) == 1 and parts[0] == "models":
-                    cursor.execute(f"/*polar4ai*/SHOW MODELS;")
-                    rows = cursor.fetchall()
-                    result = [row[0] for row in rows]
-                    return "\n".join(result)
                 elif len(parts) == 2 and parts[1] == "data" or parts[1] == 'field':
                     table = parts[0]
                     resource_type = parts[1]
@@ -144,44 +139,8 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["query"]
             }
-        ),
-        Tool(
-            name="polar4ai_create_models",
-            description="使用polar4ai语法，创建模型，参数只含有以下字段model_name,model_class,x_cols,y_cols,table_name。",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    {
-                        "type": "json",
-                        "description": "一个json，不要生成其他字段，只含有以下字段model_name,model_class,x_cols,y_cols,table_name。例如{\"model_name\":\"gbdt_test\",\"model_class\":\"gbdt\",\"x_cols\":\"test_feature\",\"y_cols\":\"test_label\",\"table_name\":\"testfile\"}"
-                    }
-                },
-                "required": ["json"]
-            }
         )
     ]
-
-def polar4ai_create_models(query_dict: dict) -> list[TextContent]:
-    """
-    使用polar4ai语法，创建模型
-    """
-    config = get_db_config()
-    config['compress']=True
-    logger.info(str(query_dict))
-    logger.info(f"Reading polar4ai_create_models")
-    try:
-        with connect(**config) as conn:
-            with conn.cursor() as cursor:
-                query_str = "/*polar4ai*/CREATE MODEL "+str(query_dict['model_name'])+" WITH (model_class = \'"+str(query_dict['model_class'])+"\',x_cols = \'"+str(query_dict['x_cols'])+"\',y_cols=\'"+str(query_dict['y_cols'])+"\')AS (SELECT * FROM "+str(query_dict['table_name'])+");"
-                cursor.execute(query_str)
-                logger.info("create model ok")
-                return [TextContent(type="text", text=f"创建{str(query_dict['model_name'])}模型成功")]
-                
-    except Error as e:
-        logger.error(f"Database error polar4ai : {str(e)}")
-        return [TextContent(type="text", text=f"创建{str(query_dict['model_name'])}模型失败")]
-
-
 def get_sql_operation_type(sql):
     """
     get sql operation type
@@ -221,6 +180,7 @@ def execute_sql(arguments: str) -> str:
         raise ValueError("Query is required")
     operation_type = get_sql_operation_type(query)
     logger.info(f"SQL operation type: {operation_type}")
+    global enable_write,enable_update,enable_insert,enable_ddl
     if operation_type == 'INSERT' and not enable_insert:
         logger.info(f"INSERT operation is not enabled,please check POLARDB_MYSQL_ENABLE_INSERT")
         return [TextContent(type="text", text=f"INSERT operation is not enabled in current tool")]
@@ -255,8 +215,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
     if name == "execute_sql":
         return execute_sql(arguments)
-    elif name == "polar4ai_create_models":
-        return polar4ai_create_models(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 def create_starlette_app(app: Server, *, debug: bool = False) -> Starlette:
@@ -316,6 +274,7 @@ def get_bool_env(var_name: str, default: bool = False) -> bool:
     return value.lower() in ['true', '1', 't', 'y', 'yes']
 def main():
     load_dotenv()
+    global enable_write,enable_update,enable_insert,enable_ddl
     enable_write = get_bool_env("POLARDB_MYSQL_ENABLE_WRITE")
     enable_update = get_bool_env("POLARDB_MYSQL_ENABLE_UPDATE")
     enable_insert = get_bool_env("POLARDB_MYSQL_ENABLE_INSERT")
