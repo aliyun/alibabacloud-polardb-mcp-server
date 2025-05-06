@@ -151,12 +151,12 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    {
+                    "query_dict": {  # Add a property name here
                         "type": "json",
                         "description": "一个json，不要生成其他字段，只含有以下字段model_name,model_class,x_cols,y_cols,table_name。例如{\"model_name\":\"gbdt_test\",\"model_class\":\"gbdt\",\"x_cols\":\"test_feature\",\"y_cols\":\"test_label\",\"table_name\":\"testfile\"}"
                     }
                 },
-                "required": ["json"]
+                "required": ["query_dict"]
             }
         )
     ]
@@ -256,7 +256,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "execute_sql":
         return execute_sql(arguments)
     elif name == "polar4ai_create_models":
-        return polar4ai_create_models(arguments)
+        # Extract the query_dict from arguments
+        query_dict = arguments.get("query_dict")
+        if query_dict is None:
+            raise ValueError("Missing 'query_dict' in arguments")
+        return polar4ai_create_models(query_dict)
     else:
         raise ValueError(f"Unknown tool: {name}")
 def create_starlette_app(app: Server, *, debug: bool = False) -> Starlette:
