@@ -18,10 +18,17 @@ PolarDB MySQL MCP Server
 * POLARDB_POSTGRESQL_ENABLE_DDL:  Enable ddl operation(default:false)  
 * SSE_BIND_HOST: The host address to bind for SSE mode  
 * SSE_BIND_PORT: The port to bind for SSE mode  
+<<<<<<< HEAD
 * RUN_MODE: The run mode(sse|stdio),(default:stdio)  
 # Build and Run
   git clone <git@gitlab.alibaba-inc.com>:rds_proxy/polardb_mcp_server.git  
   cd polardb_mcp_server/polardb-postgresql-mcp-server  
+=======
+* RUN_MODE: The run mode(sse|stdio),(default:sse)  
+# Build and Run
+  git clone https://github.com/aliyun/alibabacloud-polardb-mcp-server.git  
+  cd alibabacloud-polardb-mcp-server/polardb-postgresql-mcp-server  
+>>>>>>> ghub
   uv venv  
   source .venv/bin/activate  
   cp .env_example .env #set env file with your database information  
@@ -45,7 +52,11 @@ PolarDB MySQL MCP Server
       "command": "uv",
       "args": [
         "--directory",
+<<<<<<< HEAD
         "/xxxx/polardb_mcp_server/polardb-postgresql-mcp-server",
+=======
+        "/xxxx/alibabacloud-polardb-mcp-server/polardb-postgresql-mcp-server",
+>>>>>>> ghub
         "run",
         "server.py"
       ],
@@ -68,6 +79,10 @@ PolarDB MySQL MCP Server
 
 ## Client
 1. set RUN_MODE=sse and other env variables in .env file  
+<<<<<<< HEAD
 2. cd polardb_mcp_server/polardb-postgresql-mcp-server && uv run server.py  
+=======
+2. cd alibabacloud-polardb-mcp-server/polardb-postgresql-mcp-server && uv run server.py  
+>>>>>>> ghub
 3. Set Remote Server  
 ![set remote server](./images/22.jpg)

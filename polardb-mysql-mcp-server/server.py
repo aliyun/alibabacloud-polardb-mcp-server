@@ -151,35 +151,52 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "query_dict": {  # Add a property name here
+                    "model": {  # Add a property name here
                         "type": "json",
-                        "description": "一个json，不要生成其他字段，只含有以下字段model_name,model_class,x_cols,y_cols,table_name。例如{\"model_name\":\"gbdt_test\",\"model_class\":\"gbdt\",\"x_cols\":\"test_feature\",\"y_cols\":\"test_label\",\"table_name\":\"testfile\"}"
+                        "description": """ 
+                        各字段意义如下
+                        model_name:模型名称
+                        model_class:模型算法,可以如下取值
+                            * lightgbm(LightGBM算法)
+                            * deepfm(DeepFM算法))
+                            * kmeans(K均值聚类算法（K-Means))
+                            * randomforestreg(随机森林回归算法（Random Forest Regression))
+                            * gbrt(梯度提升回归树算法（GBRT))
+                            * gbdt(决策树算法（GBDT))
+                            * linearreg(线性回归算法（Linear Regression))
+                            * svr(支持向量回归算法（SVR))
+                            * bst(BST算法)
+                        table_reference：输入特征表名称
+                        x_cols: 模型输入列(table_reference中的列),以逗号分隔
+                        y_cols: 模型输出列(table_reference中的列),以逗号分隔
+                        完整的例子如下: {"model_name":"gbdt_test","model_class":"gbdt","x_cols":"test_feature1,test_feature2","y_cols":"test_label","table_name":"testfile"}
+                        """
                     }
                 },
-                "required": ["query_dict"]
+                "required": ["model"]
             }
         )
     ]
 
-def polar4ai_create_models(query_dict: dict) -> list[TextContent]:
+def polar4ai_create_models(model: dict) -> list[TextContent]:
     """
     使用polar4ai语法，创建模型
     """
     config = get_db_config()
-    config['compress']=True
-    logger.info(str(query_dict))
+    #config['compress']=True
+    logger.info(str(model))
     logger.info(f"Reading polar4ai_create_models")
     try:
         with connect(**config) as conn:
             with conn.cursor() as cursor:
-                query_str = "/*polar4ai*/CREATE MODEL "+str(query_dict['model_name'])+" WITH (model_class = \'"+str(query_dict['model_class'])+"\',x_cols = \'"+str(query_dict['x_cols'])+"\',y_cols=\'"+str(query_dict['y_cols'])+"\')AS (SELECT * FROM "+str(query_dict['table_name'])+");"
+                query_str = "/*polar4ai*/CREATE MODEL "+str(model['model_name'])+" WITH (model_class = \'"+str(model['model_class'])+"\',x_cols = \'"+str(model['x_cols'])+"\',y_cols=\'"+str(model['y_cols'])+"\')AS (SELECT * FROM "+str(model['table_name'])+");"
                 cursor.execute(query_str)
                 logger.info("create model ok")
-                return [TextContent(type="text", text=f"创建{str(query_dict['model_name'])}模型成功")]
+                return [TextContent(type="text", text=f"创建{str(model['model_name'])}模型成功")]
                 
     except Error as e:
         logger.error(f"Database error polar4ai : {str(e)}")
-        return [TextContent(type="text", text=f"创建{str(query_dict['model_name'])}模型失败")]
+        return [TextContent(type="text", text=f"创建{str(model['model_name'])}模型失败")]
 
 
 def get_sql_operation_type(sql):
@@ -221,6 +238,7 @@ def execute_sql(arguments: str) -> str:
         raise ValueError("Query is required")
     operation_type = get_sql_operation_type(query)
     logger.info(f"SQL operation type: {operation_type}")
+    global enable_write,enable_update,enable_insert,enable_ddl
     if operation_type == 'INSERT' and not enable_insert:
         logger.info(f"INSERT operation is not enabled,please check POLARDB_MYSQL_ENABLE_INSERT")
         return [TextContent(type="text", text=f"INSERT operation is not enabled in current tool")]
@@ -257,7 +275,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return execute_sql(arguments)
     elif name == "polar4ai_create_models":
         # Extract the query_dict from arguments
-        query_dict = arguments.get("query_dict")
+        query_dict = arguments.get("model")
         if query_dict is None:
             raise ValueError("Missing 'query_dict' in arguments")
         return polar4ai_create_models(query_dict)
@@ -318,8 +336,9 @@ def get_bool_env(var_name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.lower() in ['true', '1', 't', 'y', 'yes']
-if __name__ == "__main__":
+def main():
     load_dotenv()
+    global enable_write,enable_update,enable_insert,enable_ddl
     enable_write = get_bool_env("POLARDB_MYSQL_ENABLE_WRITE")
     enable_update = get_bool_env("POLARDB_MYSQL_ENABLE_UPDATE")
     enable_insert = get_bool_env("POLARDB_MYSQL_ENABLE_INSERT")
@@ -331,3 +350,6 @@ if __name__ == "__main__":
         bind_host = os.getenv("SSE_BIND_HOST")
         bind_port = int(os.getenv("SSE_BIND_PORT"))
         sse_main(bind_host,bind_port)
+
+if __name__ == "__main__":
+    main()
