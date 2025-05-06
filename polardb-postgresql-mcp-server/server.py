@@ -220,6 +220,7 @@ def execute_sql(arguments: str) -> str:
         raise ValueError("Query is required")
     operation_type = get_sql_operation_type(query)
     logger.info(f"SQL operation type: {operation_type}")
+    global enable_write,enable_update,enable_insert,enable_ddl
     if operation_type == 'INSERT' and not enable_insert:
         logger.info(f"INSERT operation is not enabled,please check POLARDB_MYSQL_ENABLE_INSERT")
         return [TextContent(type="text", text=f"INSERT operation is not enabled in current tool")]
@@ -316,8 +317,10 @@ def get_bool_env(var_name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.lower() in ['true', '1', 't', 'y', 'yes']
-if __name__ == "__main__":
+
+def main():
     load_dotenv()
+    global enable_write,enable_update,enable_insert,enable_ddl
     enable_write = get_bool_env("POLARDB_POSTGRESQL_ENABLE_WRITE")
     enable_update = get_bool_env("POLARDB_POSTGRESQL_ENABLE_UPDATE")
     enable_insert = get_bool_env("POLARDB_POSTGRESQL_ENABLE_INSERT")
@@ -329,3 +332,6 @@ if __name__ == "__main__":
         bind_host = os.getenv("SSE_BIND_HOST")
         bind_port = int(os.getenv("SSE_BIND_PORT"))
         sse_main(bind_host,bind_port)
+
+if __name__ == "__main__":
+    main()
