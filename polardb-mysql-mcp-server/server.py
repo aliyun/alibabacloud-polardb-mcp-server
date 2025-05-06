@@ -6,12 +6,20 @@ from mcp.server import Server
 import uvicorn
 import logging
 import os
+import sys
 from mysql.connector import connect, Error
 from mcp.types import Resource, Tool, TextContent, ResourceTemplate
 from pydantic import AnyUrl
 from dotenv import load_dotenv
 import asyncio
 import sqlparse
+
+from alibabacloud_polardb20170801.client import Client as polardb20170801Client
+from alibabacloud_tea_openapi import models as open_api_models
+from alibabacloud_polardb20170801 import models as polardb_20170801_models
+from alibabacloud_tea_util import models as util_models
+from alibabacloud_tea_util.client import Client as UtilClient
+
 enable_write = False
 enable_update = False
 enable_insert = False
@@ -39,6 +47,32 @@ def get_db_config():
     
     return config
 
+def create_client() -> polardb20170801Client:
+    """
+    Initialize the Client with the credentials from the environment variables.
+    @return: polardb20170801Client
+    """
+    # Load environment variables from .env file
+    load_dotenv()
+
+    # Retrieve Alibaba Cloud Access Key and Secret from environment variables
+    access_key_id = os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID')
+    access_key_secret = os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET')
+
+    if not access_key_id or not access_key_secret:
+        print("Missing Access Key ID or Access Key Secret.")
+        return None
+
+    # Create a Config object to store your credentials
+    config = open_api_models.Config(
+        access_key_id=access_key_id,
+        access_key_secret=access_key_secret,
+        region_id='cn-hangzhou'  # Update this with your region if needed
+    )
+    # Set the endpoint for the PolarDB API
+    config.endpoint = 'polardb.aliyuncs.com'
+    return polardb20170801Client(config)
+
 # Initialize server
 app = Server("polardb-mysql-mcp-server")
 
@@ -57,12 +91,29 @@ async def list_resources() -> list[Resource]:
                 name="get_models",
                 description=" List all models for Polar4ai and PolarDB MySQL in the current database",
                 mimeType="text/plain"
+            ),
+            Resource(
+                uri=f"polardb-mysql://regions",
+                name="get_regions",
+                description="List all available regions for Alibaba Cloud PolarDB",
+                mimeType="text/plain"
+            ),
+            Resource(
+                uri=f"polardb-mysql://clusters",
+                name="get_clusters",
+                description="List all PolarDB clusters across all regions",
+                mimeType="text/plain"
+            ),
+            Resource(
+                uri=f"polardb-mysql://available-versions",
+                name="get_available_versions",
+                description="List all available versions of PolarDB for sale",
+                mimeType="text/plain"
             )
         ]
     except Exception as e:
         logger.error(f"Error listing resources: {str(e)}")
         raise
-
 
 @app.list_resource_templates()
 async def list_resource_templates() -> list[ResourceTemplate]:
@@ -78,53 +129,204 @@ async def list_resource_templates() -> list[ResourceTemplate]:
             name="table_data",
             description="get data from the table,default limit 50 rows",
             mimeType="text/plain"
+        ),
+        ResourceTemplate(
+            uriTemplate=f"polardb-mysql://{{region_id}}/clusters",
+            name="region_clusters",
+            description="get all PolarDB clusters in a specific region",
+            mimeType="text/plain"
+        ),
+        ResourceTemplate(
+            uriTemplate=f"polardb-mysql://available-versions/{{region_id}}",
+            name="region_available_versions",
+            description="list all available versions of PolarDB for sale in a specific region",
+            mimeType="text/plain"
         )
     ]
+
 @app.read_resource()
 async def read_resource(uri: AnyUrl) -> str:
-    """Read table contents and schema"""
-    config = get_db_config()
+    """Read resource contents"""
     uri_str = str(uri)
     logger.info(f"Reading resource: {uri_str}")
-    prefix = "polardb-mysql://"
-    if not uri_str.startswith(prefix):
-        logger.error(f"Invalid URI: {uri_str}")
-        raise ValueError(f"Invalid URI scheme: {uri_str}")
-    parts = uri_str[len(prefix):].split('/')
-    try:
-        with connect(**config) as conn:
-            with conn.cursor() as cursor:
-                if len(parts) == 1 and parts[0] == "tables":
-                    cursor.execute(f"SHOW TABLES")
-                    rows = cursor.fetchall()
-                    result = [row[0] for row in rows]
-                    return "\n".join(result)
-                elif len(parts) == 1 and parts[0] == "models":
-                    cursor.execute(f"/*polar4ai*/SHOW MODELS;")
-                    rows = cursor.fetchall()
-                    result = [row[0] for row in rows]
-                    return "\n".join(result)
-                elif len(parts) == 2 and parts[1] == "data" or parts[1] == 'field':
-                    table = parts[0]
-                    resource_type = parts[1]
-                    if resource_type == "data":
-                        cursor.execute(f"SELECT * FROM {table} LIMIT 50")
-                        columns = [desc[0] for desc in cursor.description]
+
+    # Handle polardb-mysql:// URIs for PolarDB API resources
+    if uri_str.startswith("polardb-mysql://"):
+        prefix = "polardb-mysql://"
+        parts = uri_str[len(prefix):].split('/')
+
+        if len(parts) == 1 and parts[0] == "regions":
+            # List all regions
+            return await get_polardb_regions()
+
+        elif len(parts) == 1 and parts[0] == "clusters":
+            # List all clusters across all regions
+            return await get_all_polardb_clusters()
+
+        elif len(parts) == 2 and parts[1] == "clusters":
+            # List clusters in a specific region
+            region_id = parts[0]
+            return await get_polardb_clusters(region_id)
+
+        elif len(parts) == 1 and parts[0] == "available-versions":
+            # List all available versions across all regions
+            return await get_all_available_polardb_versions()
+
+        elif len(parts) == 2 and parts[0] == "available-versions":
+            # List available versions for a specific region
+            region_id = parts[1]
+            return await get_available_polardb_versions(region_id)
+
+        # Handle original polardb-mysql resources
+        elif len(parts) == 1 and parts[0] == "tables":
+            config = get_db_config()
+            try:
+                with connect(**config) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute(f"SHOW TABLES")
                         rows = cursor.fetchall()
-                        result = [",".join(map(str, row)) for row in rows]
-                        return "\n".join([",".join(columns)] + result)
-                    elif resource_type == "field":
-                        cursor.execute(f"SELECT COLUMN_NAME,COLUMN_TYPE,COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{config['database']}' AND TABLE_NAME = '{table}'")
-                        rows = cursor.fetchall()
-                        result = [",".join(map(str, row)) for row in rows]
+                        result = [row[0] for row in rows]
                         return "\n".join(result)
-                else:
-                    logger.error(f"Invalid URI: {uri_str}")
-                    raise ValueError(f"Invalid URI: {uri_str}")
-                
-    except Error as e:
-        logger.error(f"Database error reading resource {uri}: {str(e)}")
-        raise RuntimeError(f"Database error: {str(e)}")
+            except Error as e:
+                logger.error(f"Database error reading tables: {str(e)}")
+                raise RuntimeError(f"Database error: {str(e)}")
+
+        elif len(parts) == 1 and parts[0] == "models":
+            config = get_db_config()
+            try:
+                with connect(**config) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute(f"/*polar4ai*/SHOW MODELS;")
+                        rows = cursor.fetchall()
+                        result = [row[0] for row in rows]
+                        return "\n".join(result)
+            except Error as e:
+                logger.error(f"Database error reading models: {str(e)}")
+                raise RuntimeError(f"Database error: {str(e)}")
+
+        elif len(parts) == 2 and (parts[1] == "data" or parts[1] == 'field'):
+            config = get_db_config()
+            table = parts[0]
+            resource_type = parts[1]
+            try:
+                with connect(**config) as conn:
+                    with conn.cursor() as cursor:
+                        if resource_type == "data":
+                            cursor.execute(f"SELECT * FROM {table} LIMIT 50")
+                            columns = [desc[0] for desc in cursor.description]
+                            rows = cursor.fetchall()
+                            result = [",".join(map(str, row)) for row in rows]
+                            return "\n".join([",".join(columns)] + result)
+                        elif resource_type == "field":
+                            cursor.execute(f"SELECT COLUMN_NAME,COLUMN_TYPE,COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{config['database']}' AND TABLE_NAME = '{table}'")
+                            rows = cursor.fetchall()
+                            result = [",".join(map(str, row)) for row in rows]
+                            return "\n".join(result)
+            except Error as e:
+                logger.error(f"Database error reading resource: {str(e)}")
+                raise RuntimeError(f"Database error: {str(e)}")
+
+        else:
+            logger.error(f"Invalid URI: {uri_str}")
+            raise ValueError(f"Invalid URI: {uri_str}")
+
+    else:
+        logger.error(f"Invalid URI scheme: {uri_str}")
+        raise ValueError(f"Invalid URI scheme: {uri_str}")
+
+# PolarDB API helper functions
+async def get_polardb_regions() -> str:
+    """Get all available PolarDB regions"""
+    client = create_client()
+    if not client:
+        return "Failed to create PolarDB client. Please check your credentials."
+
+    try:
+        # Create the request model for DescribeRegions
+        describe_regions_request = polardb_20170801_models.DescribeRegionsRequest()
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API to get the regions list
+        response = client.describe_regions_with_options(describe_regions_request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'regions') and response.body.regions:
+            regions_info = []
+            for region in response.body.regions.region:
+                regions_info.append(f"{region.region_id}: {region.local_name}")
+
+            return "\n".join(regions_info)
+        else:
+            return "No regions found or empty response"
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB regions: {str(e)}")
+        return f"Error retrieving regions: {str(e)}"
+
+async def get_polardb_clusters(region_id: str) -> str:
+    """Get all PolarDB clusters in a specific region"""
+    client = create_client()
+    if not client:
+        return "Failed to create PolarDB client. Please check your credentials."
+
+    try:
+        # Create request for describing DB clusters
+        request = polardb_20170801_models.DescribeDBClustersRequest(
+            region_id=region_id
+        )
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_d_b_clusters_with_options(request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'items') and response.body.items:
+            clusters_info = []
+            for cluster in response.body.items.d_b_cluster:
+                cluster_info = (
+                    f"Cluster ID: {cluster.db_cluster_id}\n"
+                    f"Description: {cluster.db_cluster_description}\n"
+                    f"Status: {cluster.db_cluster_status}\n"
+                    f"Engine: {cluster.engine} {cluster.db_version}\n"
+                    f"Created: {cluster.create_time}\n"
+                    f"----------------------------------"
+                )
+                clusters_info.append(cluster_info)
+
+            return "\n".join(clusters_info)
+        else:
+            return f"No PolarDB clusters found in region {region_id}"
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB clusters: {str(e)}")
+        return f"Error retrieving clusters: {str(e)}"
+
+async def get_all_polardb_clusters() -> str:
+    """Get all PolarDB clusters across all regions"""
+    # First get all regions
+    regions_text = await get_polardb_regions()
+    regions = []
+
+    for line in regions_text.split("\n"):
+        if line and ":" in line:
+            region_id = line.split(":")[0].strip()
+            regions.append(region_id)
+
+    if not regions:
+        return "No regions found"
+
+    # Get clusters for each region
+    all_clusters = []
+    for region_id in regions:
+        clusters = await get_polardb_clusters(region_id)
+        if clusters and "No PolarDB clusters found" not in clusters:
+            all_clusters.append(f"=== Region: {region_id} ===")
+            all_clusters.append(clusters)
+
+    if not all_clusters:
+        return "No PolarDB clusters found across all regions"
+
+    return "\n".join(all_clusters)
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
@@ -174,6 +376,61 @@ async def list_tools() -> list[Tool]:
                     }
                 },
                 "required": ["model"]
+            }
+        ),
+        Tool(
+            name="polardb_describe_regions",
+            description="List all available regions for Alibaba Cloud PolarDB",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
+            name="polardb_describe_db_clusters",
+            description="List all PolarDB clusters in a specific region",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "region_id": {
+                        "type": "string",
+                        "description": "Region ID to list clusters from (e.g., cn-hangzhou)"
+                    }
+                },
+                "required": ["region_id"]
+            }
+        ),
+        Tool(
+            name="polardb_describe_db_cluster",
+            description="Get detailed information about a specific PolarDB cluster",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "region_id": {
+                        "type": "string",
+                        "description": "Region ID where the cluster is located"
+                    },
+                    "db_cluster_id": {
+                        "type": "string",
+                        "description": "The ID of the PolarDB cluster"
+                    }
+                },
+                "required": ["region_id", "db_cluster_id"]
+            }
+        ),
+        Tool(
+            name="polardb_describe_db_versions",
+            description="List all available versions of PolarDB for sale",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "region_id": {
+                        "type": "string",
+                        "description": "Region ID to list available versions (e.g., cn-hangzhou)"
+                    }
+                },
+                "required": ["region_id"]
             }
         )
     ]
@@ -268,6 +525,300 @@ def execute_sql(arguments: str) -> str:
         except Error as e:
             logger.error(f"Error executing SQL '{query}': {e}")
             return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
+
+def polardb_describe_regions() -> list[TextContent]:
+    """List all available regions for Alibaba Cloud PolarDB"""
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    # Create the request model for DescribeRegions
+    describe_regions_request = polardb_20170801_models.DescribeRegionsRequest()
+    runtime = util_models.RuntimeOptions()
+
+    try:
+        # Call the API to get the regions list
+        response = client.describe_regions_with_options(describe_regions_request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'regions') and response.body.regions:
+            regions_info = []
+            for region in response.body.regions.region:
+                # Extract zone IDs from the Zones.Zone list
+                zone_ids = []
+                if hasattr(region, 'zones') and region.zones and hasattr(region.zones, 'zone'):
+                    for zone in region.zones.zone:
+                        if hasattr(zone, 'zone_id'):
+                            zone_ids.append(zone.zone_id)
+
+                regions_info.append(f"Region ID: {region.region_id}, Zones: {', '.join(zone_ids)}")
+            return [TextContent(type="text", text="\n".join(regions_info))]
+        else:
+            return [TextContent(type="text", text="No regions found or empty response")]
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB regions: {str(e)}")
+        return [TextContent(type="text", text=f"Error retrieving regions: {str(e)}")]
+
+def polardb_describe_db_clusters(arguments: dict) -> list[TextContent]:
+    """List all PolarDB clusters in a specific region"""
+    region_id = arguments.get("region_id")
+    if not region_id:
+        return [TextContent(type="text", text="Region ID is required")]
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    # Create request for describing DB clusters
+    request = polardb_20170801_models.DescribeDBClustersRequest(
+        region_id=region_id
+    )
+    runtime = util_models.RuntimeOptions()
+
+    try:
+        # Call the API
+        response = client.describe_db_clusters_with_options(request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'items') and response.body.items:
+            clusters_info = []
+            for cluster in response.body.items.d_b_cluster:
+                cluster_info = (
+                    f"Cluster ID: {cluster.db_cluster_id}\n"
+                    f"Description: {cluster.db_cluster_description}\n"
+                    f"Status: {cluster.db_cluster_status}\n"
+                    f"Engine: {cluster.engine} {cluster.db_version}\n"
+                    f"Created: {cluster.create_time}\n"
+                    f"----------------------------------"
+                )
+                clusters_info.append(cluster_info)
+
+            return [TextContent(type="text", text="\n".join(clusters_info))]
+        else:
+            return [TextContent(type="text", text=f"No PolarDB clusters found in region {region_id}")]
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB clusters: {str(e)}")
+        return [TextContent(type="text", text=f"Error retrieving clusters: {str(e)}")]
+
+def polardb_describe_db_cluster(arguments: dict) -> list[TextContent]:
+    """Get detailed information about a specific PolarDB cluster"""
+    region_id = arguments.get("region_id")
+    db_cluster_id = arguments.get("db_cluster_id")
+
+    if not region_id:
+        return [TextContent(type="text", text="Region ID is required")]
+
+    if not db_cluster_id:
+        return [TextContent(type="text", text="DB Cluster ID is required")]
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    # Create request for describing a specific DB cluster
+    request = polardb_20170801_models.DescribeDBClusterAttributeRequest(
+        db_cluster_id=db_cluster_id,
+        region_id=region_id
+    )
+    runtime = util_models.RuntimeOptions()
+
+    try:
+        # Call the API
+        response = client.describe_d_b_cluster_attribute_with_options(request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'db_cluster_attribute'):
+            attributes = response.body.db_cluster_attribute
+            if not attributes:
+                return [TextContent(type="text", text=f"No attributes found for cluster {db_cluster_id}")]
+
+            attr = attributes[0]  # First attribute in the list
+
+            # Gather all the available information
+            cluster_info = [
+                f"Cluster ID: {attr.db_cluster_id}",
+                f"Description: {attr.db_cluster_description}",
+                f"Status: {attr.db_cluster_status}",
+                f"Engine: {attr.engine} {attr.db_version}",
+                f"Created: {attr.create_time}",
+                f"Expire Time: {attr.expired_time}",
+                f"Payment Type: {attr.payment_type}",
+                f"Region ID: {attr.region_id}",
+                f"Zone ID: {attr.zone_id}",
+                f"Storage Usage: {attr.storage_used} MB",
+                f"Storage Type: {attr.storage_type}",
+                f"VPC ID: {attr.vpc_id}"
+            ]
+
+            # Add endpoints information if available
+            if hasattr(attr, 'endpoints') and attr.endpoints:
+                cluster_info.append("\nEndpoints:")
+                for endpoint in attr.endpoints.address:
+                    endpoint_info = [
+                        f"  Type: {endpoint.net_type}",
+                        f"  Address: {endpoint.connection_string}",
+                        f"  Port: {endpoint.port}",
+                        f"  VPC ID: {endpoint.vpc_id}"
+                    ]
+                    cluster_info.append("\n".join(endpoint_info))
+
+            # Add node information if available
+            if hasattr(attr, 'db_nodes') and attr.db_nodes:
+                cluster_info.append("\nDB Nodes:")
+                for node in attr.db_nodes.db_node:
+                    node_info = [
+                        f"  Node ID: {node.db_node_id}",
+                        f"  Class: {node.db_node_class}",
+                        f"  Role: {node.db_node_role}",
+                        f"  Status: {node.db_node_status}",
+                        f"  Created: {node.creation_time}",
+                        f"  Zone ID: {node.zone_id}"
+                    ]
+                    cluster_info.append("\n".join(node_info))
+
+            return [TextContent(type="text", text="\n".join(cluster_info))]
+        else:
+            return [TextContent(type="text", text=f"No details found for cluster {db_cluster_id} in region {region_id}")]
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB cluster: {str(e)}")
+        return [TextContent(type="text", text=f"Error retrieving cluster details: {str(e)}")]
+
+async def get_available_polardb_versions(region_id: str) -> str:
+    """List all available versions of PolarDB for sale in a specific region"""
+    client = create_client()
+    if not client:
+        return "Failed to create PolarDB client. Please check your credentials."
+
+    try:
+        # Create request for describing DB versions
+        request = polardb_20170801_models.DescribeDBVersionsRequest(
+            region_id=region_id
+        )
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_d_b_versions_with_options(request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'items') and response.body.items:
+            versions_info = []
+            versions_info.append(f"Available PolarDB versions in region {region_id}:")
+
+            for item in response.body.items.db_version:
+                version_info = (
+                    f"Engine: {item.engine}\n"
+                    f"Engine Version: {item.engine_version}\n"
+                    f"Category: {item.category}"
+                )
+
+                # Add supported storage types if available
+                if hasattr(item, 'storage_types') and item.storage_types:
+                    version_info += "\nSupported Storage Types:"
+                    for storage_type in item.storage_types.storage_type:
+                        version_info += f"\n  - {storage_type}"
+
+                # Add supported node types if available
+                if hasattr(item, 'supported_node_types') and item.supported_node_types:
+                    version_info += "\nSupported Node Types:"
+                    for node_type in item.supported_node_types.supported_node_type:
+                        version_info += f"\n  - {node_type}"
+
+                versions_info.append(version_info)
+                versions_info.append("----------------------------------")
+
+            return "\n".join(versions_info)
+        else:
+            return f"No available PolarDB versions found in region {region_id}"
+
+    except Exception as e:
+        logger.error(f"Error describing available PolarDB versions: {str(e)}")
+        return f"Error retrieving available versions: {str(e)}"
+
+async def get_all_available_polardb_versions() -> str:
+    """List all available versions of PolarDB for sale across all regions"""
+    # First get all regions
+    regions_text = await get_polardb_regions()
+    regions = []
+
+    for line in regions_text.split("\n"):
+        if line and ":" in line:
+            region_id = line.split(":")[0].strip()
+            regions.append(region_id)
+
+    if not regions:
+        return "No regions found"
+
+    # Get available versions for each region
+    all_versions = []
+    for region_id in regions:
+        versions = await get_available_polardb_versions(region_id)
+        if "No available PolarDB versions found" not in versions:
+            all_versions.append(versions)
+
+    if not all_versions:
+        return "No available PolarDB versions found across all regions"
+
+    return "\n\n".join(all_versions)
+
+def polardb_describe_db_versions(arguments: dict) -> list[TextContent]:
+    """List all available versions of PolarDB for sale"""
+    region_id = arguments.get("region_id")
+
+    if not region_id:
+        return [TextContent(type="text", text="Region ID is required")]
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    # Create request for describing DB versions
+    request = polardb_20170801_models.DescribeDBVersionsRequest(
+        region_id=region_id
+    )
+    runtime = util_models.RuntimeOptions()
+
+    try:
+        # Call the API
+        response = client.describe_d_b_versions_with_options(request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'items') and response.body.items:
+            versions_info = []
+            versions_info.append(f"Available PolarDB versions in region {region_id}:")
+
+            for item in response.body.items.db_version:
+                version_info = (
+                    f"Engine: {item.engine}\n"
+                    f"Engine Version: {item.engine_version}\n"
+                    f"Category: {item.category}"
+                )
+
+                # Add supported storage types if available
+                if hasattr(item, 'storage_types') and item.storage_types and hasattr(item.storage_types, 'storage_type'):
+                    version_info += "\nSupported Storage Types:"
+                    for storage_type in item.storage_types.storage_type:
+                        version_info += f"\n  - {storage_type}"
+
+                # Add supported node types if available
+                if hasattr(item, 'supported_node_types') and item.supported_node_types and hasattr(item.supported_node_types, 'supported_node_type'):
+                    version_info += "\nSupported Node Types:"
+                    for node_type in item.supported_node_types.supported_node_type:
+                        version_info += f"\n  - {node_type}"
+
+                versions_info.append(version_info)
+                versions_info.append("----------------------------------")
+
+            return [TextContent(type="text", text="\n".join(versions_info))]
+        else:
+            return [TextContent(type="text", text=f"No available PolarDB versions found in region {region_id}")]
+
+    except Exception as e:
+        logger.error(f"Error describing available PolarDB versions: {str(e)}")
+        return [TextContent(type="text", text=f"Error retrieving available versions: {str(e)}")]
+
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
@@ -279,8 +830,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         if query_dict is None:
             raise ValueError("Missing 'query_dict' in arguments")
         return polar4ai_create_models(query_dict)
+    elif name == "polardb_describe_regions":
+        return polardb_describe_regions()
+    elif name == "polardb_describe_db_clusters":
+        return polardb_describe_db_clusters(arguments)
+    elif name == "polardb_describe_db_cluster":
+        return polardb_describe_db_cluster(arguments)
+    elif name == "polardb_describe_db_versions":
+        return polardb_describe_db_versions(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
+
 def create_starlette_app(app: Server, *, debug: bool = False) -> Starlette:
     """Create a Starlette application that can server the provied mcp server with SSE."""
     sse = SseServerTransport("/messages/")
