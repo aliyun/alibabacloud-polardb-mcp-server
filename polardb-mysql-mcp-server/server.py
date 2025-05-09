@@ -103,12 +103,6 @@ async def list_resources() -> list[Resource]:
                 name="get_clusters",
                 description="List all PolarDB clusters across all regions",
                 mimeType="text/plain"
-            ),
-            Resource(
-                uri=f"polardb-mysql://available-versions",
-                name="get_available_versions",
-                description="List all available versions of PolarDB for sale",
-                mimeType="text/plain"
             )
         ]
     except Exception as e:
@@ -134,12 +128,6 @@ async def list_resource_templates() -> list[ResourceTemplate]:
             uriTemplate=f"polardb-mysql://{{region_id}}/clusters",
             name="region_clusters",
             description="get all PolarDB clusters in a specific region",
-            mimeType="text/plain"
-        ),
-        ResourceTemplate(
-            uriTemplate=f"polardb-mysql://available-versions/{{region_id}}",
-            name="region_available_versions",
-            description="list all available versions of PolarDB for sale in a specific region",
             mimeType="text/plain"
         )
     ]
@@ -167,15 +155,6 @@ async def read_resource(uri: AnyUrl) -> str:
             # List clusters in a specific region
             region_id = parts[0]
             return await get_polardb_clusters(region_id)
-
-        elif len(parts) == 1 and parts[0] == "available-versions":
-            # List all available versions across all regions
-            return await get_all_available_polardb_versions()
-
-        elif len(parts) == 2 and parts[0] == "available-versions":
-            # List available versions for a specific region
-            region_id = parts[1]
-            return await get_available_polardb_versions(region_id)
 
         # Handle original polardb-mysql resources
         elif len(parts) == 1 and parts[0] == "tables":
@@ -417,20 +396,6 @@ async def list_tools() -> list[Tool]:
                     }
                 },
                 "required": ["region_id", "db_cluster_id"]
-            }
-        ),
-        Tool(
-            name="polardb_describe_db_versions",
-            description="List all available versions of PolarDB for sale",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "region_id": {
-                        "type": "string",
-                        "description": "Region ID to list available versions (e.g., cn-hangzhou)"
-                    }
-                },
-                "required": ["region_id"]
             }
         )
     ]
@@ -686,139 +651,6 @@ def polardb_describe_db_cluster(arguments: dict) -> list[TextContent]:
         logger.error(f"Error describing PolarDB cluster: {str(e)}")
         return [TextContent(type="text", text=f"Error retrieving cluster details: {str(e)}")]
 
-async def get_available_polardb_versions(region_id: str) -> str:
-    """List all available versions of PolarDB for sale in a specific region"""
-    client = create_client()
-    if not client:
-        return "Failed to create PolarDB client. Please check your credentials."
-
-    try:
-        # Create request for describing DB versions
-        request = polardb_20170801_models.DescribeDBVersionsRequest(
-            region_id=region_id
-        )
-        runtime = util_models.RuntimeOptions()
-
-        # Call the API
-        response = client.describe_d_b_versions_with_options(request, runtime)
-
-        # Format the response
-        if response.body and hasattr(response.body, 'items') and response.body.items:
-            versions_info = []
-            versions_info.append(f"Available PolarDB versions in region {region_id}:")
-
-            for item in response.body.items.db_version:
-                version_info = (
-                    f"Engine: {item.engine}\n"
-                    f"Engine Version: {item.engine_version}\n"
-                    f"Category: {item.category}"
-                )
-
-                # Add supported storage types if available
-                if hasattr(item, 'storage_types') and item.storage_types:
-                    version_info += "\nSupported Storage Types:"
-                    for storage_type in item.storage_types.storage_type:
-                        version_info += f"\n  - {storage_type}"
-
-                # Add supported node types if available
-                if hasattr(item, 'supported_node_types') and item.supported_node_types:
-                    version_info += "\nSupported Node Types:"
-                    for node_type in item.supported_node_types.supported_node_type:
-                        version_info += f"\n  - {node_type}"
-
-                versions_info.append(version_info)
-                versions_info.append("----------------------------------")
-
-            return "\n".join(versions_info)
-        else:
-            return f"No available PolarDB versions found in region {region_id}"
-
-    except Exception as e:
-        logger.error(f"Error describing available PolarDB versions: {str(e)}")
-        return f"Error retrieving available versions: {str(e)}"
-
-async def get_all_available_polardb_versions() -> str:
-    """List all available versions of PolarDB for sale across all regions"""
-    # First get all regions
-    regions_text = await get_polardb_regions()
-    regions = []
-
-    for line in regions_text.split("\n"):
-        if line and ":" in line:
-            region_id = line.split(":")[0].strip()
-            regions.append(region_id)
-
-    if not regions:
-        return "No regions found"
-
-    # Get available versions for each region
-    all_versions = []
-    for region_id in regions:
-        versions = await get_available_polardb_versions(region_id)
-        if "No available PolarDB versions found" not in versions:
-            all_versions.append(versions)
-
-    if not all_versions:
-        return "No available PolarDB versions found across all regions"
-
-    return "\n\n".join(all_versions)
-
-def polardb_describe_db_versions(arguments: dict) -> list[TextContent]:
-    """List all available versions of PolarDB for sale"""
-    region_id = arguments.get("region_id")
-
-    if not region_id:
-        return [TextContent(type="text", text="Region ID is required")]
-
-    client = create_client()
-    if not client:
-        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
-
-    # Create request for describing DB versions
-    request = polardb_20170801_models.DescribeDBVersionsRequest(
-        region_id=region_id
-    )
-    runtime = util_models.RuntimeOptions()
-
-    try:
-        # Call the API
-        response = client.describe_d_b_versions_with_options(request, runtime)
-
-        # Format the response
-        if response.body and hasattr(response.body, 'items') and response.body.items:
-            versions_info = []
-            versions_info.append(f"Available PolarDB versions in region {region_id}:")
-
-            for item in response.body.items.db_version:
-                version_info = (
-                    f"Engine: {item.engine}\n"
-                    f"Engine Version: {item.engine_version}\n"
-                    f"Category: {item.category}"
-                )
-
-                # Add supported storage types if available
-                if hasattr(item, 'storage_types') and item.storage_types and hasattr(item.storage_types, 'storage_type'):
-                    version_info += "\nSupported Storage Types:"
-                    for storage_type in item.storage_types.storage_type:
-                        version_info += f"\n  - {storage_type}"
-
-                # Add supported node types if available
-                if hasattr(item, 'supported_node_types') and item.supported_node_types and hasattr(item.supported_node_types, 'supported_node_type'):
-                    version_info += "\nSupported Node Types:"
-                    for node_type in item.supported_node_types.supported_node_type:
-                        version_info += f"\n  - {node_type}"
-
-                versions_info.append(version_info)
-                versions_info.append("----------------------------------")
-
-            return [TextContent(type="text", text="\n".join(versions_info))]
-        else:
-            return [TextContent(type="text", text=f"No available PolarDB versions found in region {region_id}")]
-
-    except Exception as e:
-        logger.error(f"Error describing available PolarDB versions: {str(e)}")
-        return [TextContent(type="text", text=f"Error retrieving available versions: {str(e)}")]
-
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
@@ -836,8 +668,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return polardb_describe_db_clusters(arguments)
     elif name == "polardb_describe_db_cluster":
         return polardb_describe_db_cluster(arguments)
-    elif name == "polardb_describe_db_versions":
-        return polardb_describe_db_versions(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 
