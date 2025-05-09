@@ -103,6 +103,12 @@ async def list_resources() -> list[Resource]:
                 name="get_clusters",
                 description="List all PolarDB clusters across all regions",
                 mimeType="text/plain"
+            ),
+            Resource(
+                uri=f"polardb-mysql://classes",
+                name="get_classes",
+                description="List all available PolarDB instance classes/specifications",
+                mimeType="text/plain"
             )
         ]
     except Exception as e:
@@ -128,6 +134,18 @@ async def list_resource_templates() -> list[ResourceTemplate]:
             uriTemplate=f"polardb-mysql://{{region_id}}/clusters",
             name="region_clusters",
             description="get all PolarDB clusters in a specific region",
+            mimeType="text/plain"
+        ),
+        ResourceTemplate(
+            uriTemplate=f"polardb-mysql://classes/{{db_type}}",
+            name="db_type_classes",
+            description="get all PolarDB classes specifications for a specific database type (MySQL, PostgreSQL, etc.)",
+            mimeType="text/plain"
+        ),
+        ResourceTemplate(
+            uriTemplate=f"polardb-mysql://classes/{{region_id}}/{{db_type}}",
+            name="region_db_type_classes",
+            description="get all PolarDB classes specifications for a specific region and database type",
             mimeType="text/plain"
         )
     ]
@@ -155,6 +173,21 @@ async def read_resource(uri: AnyUrl) -> str:
             # List clusters in a specific region
             region_id = parts[0]
             return await get_polardb_clusters(region_id)
+
+        elif len(parts) == 1 and parts[0] == "classes":
+            # List all instance classes across all regions
+            return await get_polardb_classes()
+
+        elif len(parts) == 2 and parts[0] == "classes":
+            # List instance classes for a specific DB type
+            db_type = parts[1]
+            return await get_polardb_classes(db_type=db_type)
+
+        elif len(parts) == 3 and parts[0] == "classes":
+            # List instance classes for a specific region and DB type
+            region_id = parts[1]
+            db_type = parts[2]
+            return await get_polardb_classes(region_id=region_id, db_type=db_type)
 
         # Handle original polardb-mysql resources
         elif len(parts) == 1 and parts[0] == "tables":
@@ -307,6 +340,82 @@ async def get_all_polardb_clusters() -> str:
 
     return "\n".join(all_clusters)
 
+async def get_polardb_classes(region_id: str = None, db_type: str = None) -> str:
+    """Get all PolarDB instance classes/specifications"""
+    client = create_client()
+    if not client:
+        return "Failed to create PolarDB client. Please check your credentials."
+
+    try:
+        # Create request for describing DB classes
+        request = polardb_20170801_models.DescribeClassListRequest()
+        
+        # Add CommodityCode parameter with polardb_sub as default value
+        request.commodity_code = "polardb_sub"
+
+        # Set optional parameters if provided
+        if region_id:
+            request.region_id = region_id
+        if db_type:
+            request.db_type = db_type
+
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_class_list_with_options(request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'items') and response.body.items:
+            classes_info = []
+
+            # Add header row
+            header = "ClassCode, ClassTypeLevel, ClassGroup, CPU, Memory, MaxConnections, MaxStorageCapacity, MaxIOPS, Price"
+            classes_info.append(header)
+
+            for class_item in response.body.items:
+                # Build IOPS info
+                iops_info = ""
+                if hasattr(class_item, 'psl4_max_iops') and class_item.psl4_max_iops:
+                    iops_info = f"PSL4:{class_item.psl4_max_iops}"
+                elif hasattr(class_item, 'pl1_max_iops') and class_item.pl1_max_iops:
+                    iops_info = f"PL1:{class_item.pl1_max_iops}"
+
+                # Format price from cents to yuan for readability
+                price = "N/A"
+                if hasattr(class_item, 'reference_price') and class_item.reference_price:
+                    try:
+                        price_yuan = int(class_item.reference_price) / 100
+                        price = f"{price_yuan:.2f} Yuan"
+                    except (ValueError, TypeError):
+                        price = class_item.reference_price
+
+                # Build the class info line
+                class_info = (
+                    f"{class_item.class_code}, "
+                    f"{getattr(class_item, 'class_type_level', 'N/A')}, "
+                    f"{getattr(class_item, 'class_group', 'N/A')}, "
+                    f"{getattr(class_item, 'cpu', 'N/A')}, "
+                    f"{getattr(class_item, 'memory_class', 'N/A')}, "
+                    f"{getattr(class_item, 'max_connections', 'N/A')}, "
+                    f"{getattr(class_item, 'max_storage_capacity', 'N/A')}, "
+                    f"{iops_info}, "
+                    f"{price}"
+                )
+                classes_info.append(class_info)
+
+            return "\n".join(classes_info)
+        else:
+            msg = "No PolarDB instance classes found"
+            if region_id:
+                msg += f" in region {region_id}"
+            if db_type:
+                msg += f" for DB type {db_type}"
+            return msg
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB classes: {str(e)}")
+        return f"Error retrieving instance classes: {str(e)}"
+
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     """List available PolarDB MySQL tools."""
@@ -396,6 +505,40 @@ async def list_tools() -> list[Tool]:
                     }
                 },
                 "required": ["region_id", "db_cluster_id"]
+            }
+        ),
+        Tool(
+            name="polardb_describe_class_list",
+            description="List all available PolarDB instance class specifications",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "region_id": {
+                        "type": "string",
+                        "description": "Region ID to list classes from (e.g., cn-hangzhou)"
+                    },
+                    "db_type": {
+                        "type": "string",
+                        "description": "Database type (e.g., MySQL, PostgreSQL)"
+                    },
+                    "db_version": {
+                        "type": "string",
+                        "description": "Database version"
+                    },
+                    "pay_type": {
+                        "type": "string",
+                        "description": "Payment type (e.g., Prepaid, Postpaid)"
+                    },
+                    "class_group": {
+                        "type": "string",
+                        "description": "Class group (e.g., Beginner, Exclusive package)"
+                    },
+                    "commodity_code": {
+                        "type": "string",
+                        "description": "Commodity code for the PolarDB product (default: polardb_sub)"
+                    }
+                },
+                "required": []
             }
         )
     ]
@@ -651,6 +794,93 @@ def polardb_describe_db_cluster(arguments: dict) -> list[TextContent]:
         logger.error(f"Error describing PolarDB cluster: {str(e)}")
         return [TextContent(type="text", text=f"Error retrieving cluster details: {str(e)}")]
 
+def polardb_describe_class_list(arguments: dict = None) -> list[TextContent]:
+    """List all available PolarDB instance class specifications"""
+    arguments = arguments or {}
+    
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    try:
+        # Create request for describing DB classes
+        request = polardb_20170801_models.DescribeClassListRequest()
+        
+        # Add CommodityCode parameter with polardb_sub as default value
+        request.commodity_code = "polardb_sub"
+
+        # Set optional parameters if provided
+        if "region_id" in arguments and arguments["region_id"]:
+            request.region_id = arguments["region_id"]
+        if "db_type" in arguments and arguments["db_type"]:
+            request.db_type = arguments["db_type"]
+        if "db_version" in arguments and arguments["db_version"]:
+            request.db_version = arguments["db_version"]
+        if "pay_type" in arguments and arguments["pay_type"]:
+            request.pay_type = arguments["pay_type"]
+        if "class_group" in arguments and arguments["class_group"]:
+            request.class_group = arguments["class_group"]
+        # Allow overriding the default CommodityCode if provided
+        if "commodity_code" in arguments and arguments["commodity_code"]:
+            request.commodity_code = arguments["commodity_code"]
+
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_class_list_with_options(request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'items') and response.body.items:
+            classes_info = []
+
+            # Add header row
+            header = "ClassCode, ClassTypeLevel, ClassGroup, CPU, Memory, MaxConnections, MaxStorageCapacity, MaxIOPS, Price"
+            classes_info.append(header)
+
+            for class_item in response.body.items:
+                # Build IOPS info
+                iops_info = ""
+                if hasattr(class_item, 'psl4_max_iops') and class_item.psl4_max_iops:
+                    iops_info = f"PSL4:{class_item.psl4_max_iops}"
+                elif hasattr(class_item, 'pl1_max_iops') and class_item.pl1_max_iops:
+                    iops_info = f"PL1:{class_item.pl1_max_iops}"
+
+                # Format price from cents to yuan for readability
+                price = "N/A"
+                if hasattr(class_item, 'reference_price') and class_item.reference_price:
+                    try:
+                        price_yuan = int(class_item.reference_price) / 100
+                        price = f"{price_yuan:.2f} Yuan"
+                    except (ValueError, TypeError):
+                        price = class_item.reference_price
+
+                # Build the class info line
+                class_info = (
+                    f"{class_item.class_code}, "
+                    f"{getattr(class_item, 'class_type_level', 'N/A')}, "
+                    f"{getattr(class_item, 'class_group', 'N/A')}, "
+                    f"{getattr(class_item, 'cpu', 'N/A')}, "
+                    f"{getattr(class_item, 'memory_class', 'N/A')}, "
+                    f"{getattr(class_item, 'max_connections', 'N/A')}, "
+                    f"{getattr(class_item, 'max_storage_capacity', 'N/A')}, "
+                    f"{iops_info}, "
+                    f"{price}"
+                )
+                classes_info.append(class_info)
+
+            return [TextContent(type="text", text="\n".join(classes_info))]
+        else:
+            msg = "No PolarDB instance classes found"
+            if "region_id" in arguments and arguments["region_id"]:
+                msg += f" in region {arguments['region_id']}"
+            if "db_type" in arguments and arguments["db_type"]:
+                msg += f" for DB type {arguments['db_type']}"
+            return [TextContent(type="text", text=msg)]
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB classes: {str(e)}")
+        return [TextContent(type="text", text=f"Error retrieving instance classes: {str(e)}")]
+
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
@@ -668,6 +898,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return polardb_describe_db_clusters(arguments)
     elif name == "polardb_describe_db_cluster":
         return polardb_describe_db_cluster(arguments)
+    elif name == "polardb_describe_class_list":
+        return polardb_describe_class_list(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 
