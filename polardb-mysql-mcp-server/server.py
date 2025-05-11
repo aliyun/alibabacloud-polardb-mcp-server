@@ -540,6 +540,36 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": []
             }
+        ),
+        Tool(
+            name="polardb_describe_available_resources",
+            description="List available resources for creating PolarDB clusters",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "region_id": {
+                        "type": "string",
+                        "description": "Region ID to list available resources from (e.g., cn-hangzhou)"
+                    },
+                    "zone_id": {
+                        "type": "string",
+                        "description": "Zone ID to list available resources from"
+                    },
+                    "db_type": {
+                        "type": "string",
+                        "description": "Database type (e.g., MySQL, PostgreSQL)"
+                    },
+                    "db_version": {
+                        "type": "string",
+                        "description": "Database version (e.g., 8.0, 5.7)"
+                    },
+                    "pay_type": {
+                        "type": "string",
+                        "description": "Payment type (e.g., Prepaid, Postpaid, default: Postpaid)"
+                    }
+                },
+                "required": []
+            }
         )
     ]
 
@@ -778,7 +808,7 @@ def polardb_describe_db_cluster(arguments: dict) -> list[TextContent]:
                 for node in attr.db_nodes.db_node:
                     node_info = [
                         f"  Node ID: {node.db_node_id}",
-                        f"  Class: {node.db_node_class}",
+                        f"  Class: {node.dbnode_class}",
                         f"  Role: {node.db_node_role}",
                         f"  Status: {node.db_node_status}",
                         f"  Created: {node.creation_time}",
@@ -881,6 +911,79 @@ def polardb_describe_class_list(arguments: dict = None) -> list[TextContent]:
         logger.error(f"Error describing PolarDB classes: {str(e)}")
         return [TextContent(type="text", text=f"Error retrieving instance classes: {str(e)}")]
 
+def polardb_describe_available_resources(arguments: dict = None) -> list[TextContent]:
+    """List available resources for creating PolarDB clusters"""
+    arguments = arguments or {}
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    try:
+        # Create request for describing available resources
+        request = polardb_20170801_models.DescribeDBClusterAvailableResourcesRequest()
+
+        # Set default PayType if not provided
+        request.pay_type = arguments.get("pay_type", "Postpaid")
+
+        # Set optional parameters if provided
+        if "region_id" in arguments and arguments["region_id"]:
+            request.region_id = arguments["region_id"]
+        if "zone_id" in arguments and arguments["zone_id"]:
+            request.zone_id = arguments["zone_id"]
+        if "db_type" in arguments and arguments["db_type"]:
+            request.db_type = arguments["db_type"]
+        if "db_version" in arguments and arguments["db_version"]:
+            request.db_version = arguments["db_version"]
+
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_dbcluster_available_resources_with_options(request, runtime)
+
+        # Format the response
+        if response.body and hasattr(response.body, 'available_zones') and response.body.available_zones:
+            zones_info = []
+
+            for zone in response.body.available_zones:
+                zone_info = [f"Zone: {zone.zone_id}, Region: {zone.region_id}"]
+
+                if hasattr(zone, 'supported_engines') and zone.supported_engines:
+                    for engine in zone.supported_engines:
+                        engine_info = [f"  Engine: {engine.engine}"]
+
+                        if hasattr(engine, 'available_resources') and engine.available_resources:
+                            resources = []
+                            for resource in engine.available_resources:
+                                resources.append(f"    {resource.category}: {resource.dbnode_class}")
+
+                            if resources:
+                                engine_info.append("\n".join(resources))
+                        else:
+                            engine_info.append("    No available resources")
+
+                        zone_info.append("\n".join(engine_info))
+                else:
+                    zone_info.append("  No supported engines")
+
+                zones_info.append("\n".join(zone_info))
+                zones_info.append("----------------------------------")
+
+            return [TextContent(type="text", text="\n".join(zones_info))]
+        else:
+            msg = "No PolarDB available resources found"
+            if "region_id" in arguments and arguments["region_id"]:
+                msg += f" in region {arguments['region_id']}"
+            if "zone_id" in arguments and arguments["zone_id"]:
+                msg += f" for zone {arguments['zone_id']}"
+            if "db_type" in arguments and arguments["db_type"]:
+                msg += f" for DB type {arguments['db_type']}"
+            return [TextContent(type="text", text=msg)]
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB available resources: {str(e)}")
+        return [TextContent(type="text", text=f"Error retrieving available resources: {str(e)}")]
+
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
@@ -900,6 +1003,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return polardb_describe_db_cluster(arguments)
     elif name == "polardb_describe_class_list":
         return polardb_describe_class_list(arguments)
+    elif name == "polardb_describe_available_resources":
+        return polardb_describe_available_resources(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 
