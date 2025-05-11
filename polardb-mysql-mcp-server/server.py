@@ -15,6 +15,7 @@ import asyncio
 import sqlparse
 
 from alibabacloud_polardb20170801.client import Client as polardb20170801Client
+from alibabacloud_credentials.client import Client as CredentialClient
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_polardb20170801 import models as polardb_20170801_models
 from alibabacloud_tea_util import models as util_models
@@ -289,12 +290,12 @@ async def get_polardb_clusters(region_id: str) -> str:
         runtime = util_models.RuntimeOptions()
 
         # Call the API
-        response = client.describe_d_b_clusters_with_options(request, runtime)
+        response = client.describe_db_clusters_with_options(request, runtime)
 
         # Format the response
         if response.body and hasattr(response.body, 'items') and response.body.items:
             clusters_info = []
-            for cluster in response.body.items.d_b_cluster:
+            for cluster in response.body.items.db_cluster:
                 cluster_info = (
                     f"Cluster ID: {cluster.db_cluster_id}\n"
                     f"Description: {cluster.db_cluster_description}\n"
@@ -716,28 +717,63 @@ def polardb_describe_db_clusters(arguments: dict) -> list[TextContent]:
 
     try:
         # Call the API
-        response = client.describe_db_clusters_with_options(request, runtime)
+        response = client.describe_dbclusters_with_options(request, runtime)
+        response_dict = None
 
-        # Format the response
-        if response.body and hasattr(response.body, 'items') and response.body.items:
-            clusters_info = []
-            for cluster in response.body.items.d_b_cluster:
-                cluster_info = (
-                    f"Cluster ID: {cluster.db_cluster_id}\n"
-                    f"Description: {cluster.db_cluster_description}\n"
-                    f"Status: {cluster.db_cluster_status}\n"
-                    f"Engine: {cluster.engine} {cluster.db_version}\n"
-                    f"Created: {cluster.create_time}\n"
-                    f"----------------------------------"
-                )
-                clusters_info.append(cluster_info)
+        # 尝试转换响应为字典
+        try:
+            import json
+            response_dict = json.loads(str(response.to_map()))
+        except:
+            pass
 
+        clusters_info = []
+
+        # 如果成功转换为字典，使用字典方式访问
+        if response_dict and 'body' in response_dict:
+            body = response_dict['body']
+            if 'Items' in body and 'DBCluster' in body['Items']:
+                clusters = body['Items']['DBCluster']
+                for cluster in clusters:
+                    cluster_info = (
+                        f"Cluster ID: {cluster.get('DBClusterId', 'N/A')}\n"
+                        f"Description: {cluster.get('DBClusterDescription', 'N/A')}\n"
+                        f"Status: {cluster.get('DBClusterStatus', 'N/A')}\n"
+                        f"Engine: {cluster.get('DBType', 'N/A')} {cluster.get('DBVersion', 'N/A')}\n"
+                        f"Created: {cluster.get('CreateTime', 'N/A')}\n"
+                        f"----------------------------------"
+                    )
+                    clusters_info.append(cluster_info)
+        # 如果无法转换为字典，尝试使用对象方式访问
+        elif hasattr(response, 'body') and hasattr(response.body, 'Items'):
+            items = response.body.Items
+            if hasattr(items, 'DBCluster') and items.DBCluster:
+                for cluster in items.DBCluster:
+                    try:
+                        cluster_info = (
+                            f"Cluster ID: {getattr(cluster, 'DBClusterId', 'N/A')}\n"
+                            f"Description: {getattr(cluster, 'DBClusterDescription', 'N/A')}\n"
+                            f"Status: {getattr(cluster, 'DBClusterStatus', 'N/A')}\n"
+                            f"Engine: {getattr(cluster, 'DBType', 'N/A')} {getattr(cluster, 'DBVersion', 'N/A')}\n"
+                            f"Created: {getattr(cluster, 'CreateTime', 'N/A')}\n"
+                            f"----------------------------------"
+                        )
+                        clusters_info.append(cluster_info)
+                    except Exception as e:
+                        clusters_info.append(f"Error processing cluster: {str(e)}")
+
+        if clusters_info:
             return [TextContent(type="text", text="\n".join(clusters_info))]
         else:
-            return [TextContent(type="text", text=f"No PolarDB clusters found in region {region_id}")]
+            # 如果没有找到集群，返回原始响应数据以供调试
+            debug_info = f"No PolarDB clusters found in region {region_id}\n"
+            if response_dict:
+                debug_info += f"Response body: {response_dict}"
+            else:
+                debug_info += f"Response: {response}"
+            return [TextContent(type="text", text=debug_info)]
 
     except Exception as e:
-        logger.error(f"Error describing PolarDB clusters: {str(e)}")
         return [TextContent(type="text", text=f"Error retrieving clusters: {str(e)}")]
 
 def polardb_describe_db_cluster(arguments: dict) -> list[TextContent]:
@@ -764,7 +800,7 @@ def polardb_describe_db_cluster(arguments: dict) -> list[TextContent]:
 
     try:
         # Call the API
-        response = client.describe_d_b_cluster_attribute_with_options(request, runtime)
+        response = client.describe_dbcluster_attribute_with_options(request, runtime)
 
         # Format the response
         if response.body and hasattr(response.body, 'db_cluster_attribute'):
