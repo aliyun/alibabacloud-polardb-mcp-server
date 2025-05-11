@@ -496,10 +496,6 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "region_id": {
-                        "type": "string",
-                        "description": "Region ID where the cluster is located"
-                    },
                     "db_cluster_id": {
                         "type": "string",
                         "description": "The ID of the PolarDB cluster"
@@ -778,12 +774,7 @@ def polardb_describe_db_clusters(arguments: dict) -> list[TextContent]:
 
 def polardb_describe_db_cluster(arguments: dict) -> list[TextContent]:
     """Get detailed information about a specific PolarDB cluster"""
-    region_id = arguments.get("region_id")
     db_cluster_id = arguments.get("db_cluster_id")
-
-    if not region_id:
-        return [TextContent(type="text", text="Region ID is required")]
-
     if not db_cluster_id:
         return [TextContent(type="text", text="DB Cluster ID is required")]
 
@@ -793,68 +784,135 @@ def polardb_describe_db_cluster(arguments: dict) -> list[TextContent]:
 
     # Create request for describing a specific DB cluster
     request = polardb_20170801_models.DescribeDBClusterAttributeRequest(
-        db_cluster_id=db_cluster_id,
-        region_id=region_id
+        dbcluster_id=db_cluster_id
     )
     runtime = util_models.RuntimeOptions()
 
     try:
         # Call the API
         response = client.describe_dbcluster_attribute_with_options(request, runtime)
+        response_dict = None
 
-        # Format the response
-        if response.body and hasattr(response.body, 'db_cluster_attribute'):
-            attributes = response.body.db_cluster_attribute
-            if not attributes:
-                return [TextContent(type="text", text=f"No attributes found for cluster {db_cluster_id}")]
+        # Try to convert response to dictionary
+        try:
+            import json
+            response_dict = json.loads(str(response.to_map()))
+        except:
+            pass
 
-            attr = attributes[0]  # First attribute in the list
+        # Initialize cluster_info list
+        cluster_info = []
 
-            # Gather all the available information
-            cluster_info = [
-                f"Cluster ID: {attr.db_cluster_id}",
-                f"Description: {attr.db_cluster_description}",
-                f"Status: {attr.db_cluster_status}",
-                f"Engine: {attr.engine} {attr.db_version}",
-                f"Created: {attr.create_time}",
-                f"Expire Time: {attr.expired_time}",
-                f"Payment Type: {attr.payment_type}",
-                f"Region ID: {attr.region_id}",
-                f"Zone ID: {attr.zone_id}",
-                f"Storage Usage: {attr.storage_used} MB",
-                f"Storage Type: {attr.storage_type}",
-                f"VPC ID: {attr.vpc_id}"
-            ]
+        # If successfully converted to dictionary, use dictionary access
+        if response_dict and 'body' in response_dict:
+            body = response_dict['body']
 
-            # Add endpoints information if available
-            if hasattr(attr, 'endpoints') and attr.endpoints:
-                cluster_info.append("\nEndpoints:")
-                for endpoint in attr.endpoints.address:
-                    endpoint_info = [
-                        f"  Type: {endpoint.net_type}",
-                        f"  Address: {endpoint.connection_string}",
-                        f"  Port: {endpoint.port}",
-                        f"  VPC ID: {endpoint.vpc_id}"
-                    ]
-                    cluster_info.append("\n".join(endpoint_info))
+            # Basic cluster information
+            cluster_info.extend([
+                f"Cluster ID: {body.get('DBClusterId', 'N/A')}",
+                f"Description: {body.get('DBClusterDescription', 'N/A')}",
+                f"Status: {body.get('DBClusterStatus', 'N/A')}",
+                f"Engine: {body.get('Engine', 'N/A')} {body.get('DBVersion', 'N/A')}",
+                f"Created: {body.get('CreationTime', 'N/A')}",
+                f"Expire Time: {body.get('ExpireTime', 'N/A')}",
+                f"Payment Type: {body.get('PayType', 'N/A')}",
+                f"Region ID: {body.get('RegionId', 'N/A')}",
+                f"Zone IDs: {body.get('ZoneIds', 'N/A')}"
+            ])
 
-            # Add node information if available
-            if hasattr(attr, 'db_nodes') and attr.db_nodes:
+            # Storage information
+            storage_used = body.get('StorageUsed', 'N/A')
+            if storage_used != 'N/A':
+                try:
+                    storage_used_mb = float(storage_used) / 1024 / 1024
+                    cluster_info.append(f"Storage Usage: {storage_used} bytes ({storage_used_mb:.2f} MB)")
+                except (ValueError, TypeError):
+                    cluster_info.append(f"Storage Usage: {storage_used}")
+            else:
+                cluster_info.append(f"Storage Usage: {storage_used}")
+
+            cluster_info.extend([
+                f"Storage Type: {body.get('StorageType', 'N/A')}",
+                f"VPC ID: {body.get('VPCId', 'N/A')}",
+                f"VSwitch ID: {body.get('VSwitchId', 'N/A')}"
+            ])
+
+            # Node information
+            if 'DBNodes' in body and body['DBNodes']:
                 cluster_info.append("\nDB Nodes:")
-                for node in attr.db_nodes.db_node:
+
+                # Handle different types of node data structure
+                nodes = body['DBNodes']
+                if not isinstance(nodes, list):
+                    # If it's not a list, it might be a dict with a list inside
+                    if isinstance(nodes, dict) and 'DBNode' in nodes:
+                        nodes = nodes['DBNode']
+                    else:
+                        nodes = [nodes]
+
+                for node in nodes:
                     node_info = [
-                        f"  Node ID: {node.db_node_id}",
-                        f"  Class: {node.dbnode_class}",
-                        f"  Role: {node.db_node_role}",
-                        f"  Status: {node.db_node_status}",
-                        f"  Created: {node.creation_time}",
-                        f"  Zone ID: {node.zone_id}"
+                        f"  Node ID: {node.get('DBNodeId', 'N/A')}",
+                        f"  Description: {node.get('DBNodeDescription', 'N/A')}",
+                        f"  Class: {node.get('DBNodeClass', 'N/A')}",
+                        f"  Role: {node.get('DBNodeRole', 'N/A')}",
+                        f"  Status: {node.get('DBNodeStatus', 'N/A')}",
+                        f"  CPU Cores: {node.get('CpuCores', 'N/A')}",
+                        f"  Memory Size: {node.get('MemorySize', 'N/A')} MB",
+                        f"  Created: {node.get('CreationTime', 'N/A')}",
+                        f"  Zone ID: {node.get('ZoneId', 'N/A')}",
+                        f"  Max Connections: {node.get('MaxConnections', 'N/A')}",
+                        f"  Max IOPS: {node.get('MaxIOPS', 'N/A')}",
+                        f"  Hot Replica Mode: {node.get('HotReplicaMode', 'N/A')}",
+                        f"  IMCI Switch: {node.get('ImciSwitch', 'N/A')}"
                     ]
                     cluster_info.append("\n".join(node_info))
+                    cluster_info.append("  ----------------------------------")
 
-            return [TextContent(type="text", text="\n".join(cluster_info))]
+            # Additional cluster information
+            cluster_info.append("\nAdditional Information:")
+            cluster_info.extend([
+                f"  Architecture: {body.get('Architecture', 'N/A')}",
+                f"  Auto Upgrade Minor Version: {body.get('AutoUpgradeMinorVersion', 'N/A')}",
+                f"  Network Type: {body.get('DBClusterNetworkType', 'N/A')}",
+                f"  Deletion Lock: {body.get('DeletionLock', 'N/A')}",
+                f"  Lock Mode: {body.get('LockMode', 'N/A')}",
+                f"  Hot Standby Cluster: {body.get('HotStandbyCluster', 'N/A')}",
+                f"  Resource Group ID: {body.get('ResourceGroupId', 'N/A')}",
+                f"  Category: {body.get('Category', 'N/A')}",
+                f"  Sub Category: {body.get('SubCategory', 'N/A')}"
+            ])
+        # If cannot convert to dictionary, use object attribute access
+        elif hasattr(response, 'body'):
+            attr = response.body
+
+            # Direct access via attributes (fallback method)
+            try:
+                # Basic cluster information - try accessing attributes directly
+                cluster_info.extend([
+                    f"Cluster ID: {getattr(attr, 'DBClusterId', 'N/A')}",
+                    f"Description: {getattr(attr, 'DBClusterDescription', 'N/A')}",
+                    f"Status: {getattr(attr, 'DBClusterStatus', 'N/A')}",
+                    f"Engine: {getattr(attr, 'Engine', 'N/A')} {getattr(attr, 'DBVersion', 'N/A')}",
+                    f"Created: {getattr(attr, 'CreationTime', 'N/A')}",
+                    f"Expire Time: {getattr(attr, 'ExpireTime', 'N/A')}",
+                    f"Payment Type: {getattr(attr, 'PayType', 'N/A')}",
+                    f"Region ID: {getattr(attr, 'RegionId', 'N/A')}",
+                    f"Zone IDs: {getattr(attr, 'ZoneIds', 'N/A')}"
+                ])
+
+                # Add full response body for debugging
+                cluster_info.append("\nDebug - Full Response Body:")
+                cluster_info.append(str(attr))
+            except Exception as attr_error:
+                cluster_info.append(f"Error accessing attributes: {str(attr_error)}")
+                # Add raw response for debugging
+                cluster_info.append("\nDebug - Raw Response:")
+                cluster_info.append(str(response))
         else:
-            return [TextContent(type="text", text=f"No details found for cluster {db_cluster_id} in region {region_id}")]
+            return [TextContent(type="text", text=f"No details found for cluster {db_cluster_id}")]
+
+        return [TextContent(type="text", text="\n".join(cluster_info))]
 
     except Exception as e:
         logger.error(f"Error describing PolarDB cluster: {str(e)}")
