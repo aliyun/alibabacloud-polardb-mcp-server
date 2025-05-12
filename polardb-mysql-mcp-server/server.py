@@ -567,6 +567,72 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": []
             }
+        ),
+        Tool(
+           name="polardb_create_cluster",
+            description="Create a new PolarDB cluster",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "region_id": {
+                        "type": "string",
+                        "description": "Region ID where to create the cluster (e.g., cn-hangzhou)"
+                    },
+                    "dbtype": {
+                        "type": "string",
+                        "description": "Database type (e.g., MySQL, PostgreSQL)"
+                    },
+                    "dbversion": {
+                        "type": "string",
+                        "description": "Database version (e.g., 8.0, 5.7)"
+                    },
+                    "dbnode_class": {
+                        "type": "string",
+                        "description": "Instance class specification (e.g., polar.mysql.g1.tiny.c)"
+                    },
+                    "pay_type": {
+                        "type": "string",
+                        "description": "Payment type (Postpaid for pay-as-you-go, Prepaid for subscription)"
+                    },
+                    "storage_space": {
+                        "type": "integer",
+                        "description": "Storage space in GB (minimum 50)"
+                    },
+                    "zone_id": {
+                        "type": "string",
+                        "description": "Zone ID where to create the cluster"
+                    },
+                    "vpc_id": {
+                        "type": "string",
+                        "description": "VPC ID for the cluster"
+                    },
+                    "vswitch_id": {
+                        "type": "string",
+                        "description": "VSwitch ID for the cluster"
+                    },
+                    "db_cluster_description": {
+                        "type": "string",
+                        "description": "Description for the PolarDB cluster"
+                    },
+                    "resource_group_id": {
+                        "type": "string",
+                        "description": "Resource group ID"
+                    },
+                    "period": {
+                        "type": "string",
+                        "description": "Period for prepaid instances (Month/Year)"
+                    },
+                    "used_time": {
+                        "type": "integer",
+                        "description": "Used time for prepaid instances"
+                    },
+                    "client_token": {
+                        "type": "string",
+                        "description": "Idempotence token"
+                    }
+                },
+                "required": ["dbnode_class"]
+            }
         )
     ]
 
@@ -1078,6 +1144,73 @@ def polardb_describe_available_resources(arguments: dict = None) -> list[TextCon
         logger.error(f"Error describing PolarDB available resources: {str(e)}")
         return [TextContent(type="text", text=f"Error retrieving available resources: {str(e)}")]
 
+# Add this function to your code to handle creating PolarDB clusters
+def polardb_create_cluster(arguments: dict) -> list[TextContent]:
+    """Create a new PolarDB cluster"""
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    try:
+        # Create request for creating a new PolarDB cluster
+        request = polardb_20170801_models.CreateDBClusterRequest()
+
+        # Required parameters
+        request.region_id = arguments.get("region_id", "cn-hangzhou")
+        request.dbtype = arguments.get("dbtype", "MySQL")
+        request.dbversion = arguments.get("dbversion", "8.0")
+        request.dbnode_class = arguments.get("dbnode_class", "polar.mysql.g2.medium")
+        request.pay_type = arguments.get("pay_type", "Postpaid")
+
+        # StorageSpace parameter (required to avoid the error you encountered)
+        storage_space = arguments.get("storage_space", 50)
+        # Convert to int if it's a string
+        if isinstance(storage_space, str) and storage_space.isdigit():
+            storage_space = int(storage_space)
+        request.storage_space = storage_space
+
+        # Optional parameters
+        if "zone_id" in arguments:
+            request.zone_id = arguments["zone_id"]
+        if "vpc_id" in arguments:
+            request.vpcid = arguments["vpc_id"]
+        if "vswitch_id" in arguments:
+            request.vswitch_id = arguments["vswitch_id"]
+        if "tde_status" in arguments:
+            request.tde_status = arguments["tde_status"]
+        if "db_cluster_description" in arguments:
+            request.db_cluster_description = arguments["db_cluster_description"]
+        if "resource_group_id" in arguments:
+            request.resource_group_id = arguments["resource_group_id"]
+        if "period" in arguments:
+            request.period = arguments["period"]
+        if "used_time" in arguments:
+            request.used_time = arguments["used_time"]
+        if "client_token" in arguments:
+            request.client_token = arguments["client_token"]
+
+        # Add runtime options
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API to create the cluster
+        response = client.create_dbcluster_with_options(request, runtime)
+
+        # Format and return the successful response
+        if response.body:
+            result = (
+                f"PolarDB cluster created successfully!\n"
+                f"Cluster ID: {getattr(response.body, 'DBClusterId', 'N/A')}\n"
+                f"Order ID: {getattr(response.body, 'OrderId', 'N/A')}\n"
+                f"Request ID: {getattr(response.body, 'RequestId', 'N/A')}\n"
+                f"Resource Group ID: {getattr(response.body, 'ResourceGroupId', 'N/A')}"
+            )
+            return [TextContent(type="text", text=result)]
+        else:
+            return [TextContent(type="text", text="Cluster creation response was empty. Please check the console to verify creation.")]
+
+    except Exception as e:
+        logger.error(f"Error creating PolarDB cluster: {str(e)}")
+        return [TextContent(type="text", text=f"Error creating PolarDB cluster: {str(e)}")]
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
@@ -1099,6 +1232,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return polardb_describe_class_list(arguments)
     elif name == "polardb_describe_available_resources":
         return polardb_describe_available_resources(arguments)
+    elif name == "polardb_create_cluster":
+        return polardb_create_cluster(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 
