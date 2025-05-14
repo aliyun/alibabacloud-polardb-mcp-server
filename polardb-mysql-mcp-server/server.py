@@ -514,6 +514,28 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["dbnode_id", "db_cluster_id"]
             }
+        ),
+        Tool(
+            name="polardb_modify_db_node_parameters",
+            description="Modify configuration parameters for PolarDB database nodes",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "db_cluster_id": {
+                        "type": "string",
+                        "description": "The ID of the PolarDB cluster"
+                    },
+                    "dbnode_ids": {
+                        "type": "string",
+                        "description": "The IDs of the PolarDB database nodes, separate multiple values with commas"
+                    },
+                    "parameters": {
+                        "type": "string",
+                        "description": "Parameters to modify in JSON format, e.g., {\"wait_timeout\":\"86\",\"innodb_old_blocks_time\":\"10\"}"
+                    }
+                },
+                "required": ["db_cluster_id", "dbnode_ids", "parameters"]
+            }
         )
     ]
 
@@ -981,6 +1003,53 @@ def polardb_describe_db_node_parameters(arguments: dict) -> list[TextContent]:
         logger.error(f"Error describing PolarDB node parameters: {str(e)}")
         return [TextContent(type="text", text=f"Error retrieving parameters: {str(e)}")]
 
+def polardb_modify_db_node_parameters(arguments: dict) -> list[TextContent]:
+    """Modify configuration parameters for PolarDB database nodes"""
+    db_cluster_id = arguments.get("db_cluster_id")
+    dbnode_ids = arguments.get("dbnode_ids")
+    parameters = arguments.get("parameters")
+
+    if not db_cluster_id:
+        return [TextContent(type="text", text="DB cluster ID is required")]
+    if not dbnode_ids:
+        return [TextContent(type="text", text="Database node IDs are required")]
+    if not parameters:
+        return [TextContent(type="text", text="Parameters are required")]
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    try:
+        # Create request for modifying DB node parameters
+        request = polardb_20170801_models.ModifyDBNodesParametersRequest(
+            parameters=parameters,
+            dbcluster_id=db_cluster_id,
+            dbnode_ids=dbnode_ids
+        )
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.modify_dbnodes_parameters_with_options(request, runtime)
+
+        # Format the response
+        if hasattr(response, 'body') and response.body:
+            result = f"Parameters modified successfully for nodes {dbnode_ids} in cluster {db_cluster_id}.\n"
+            result += f"Request ID: {getattr(response.body, 'RequestId', 'N/A')}"
+
+            # Check if there's a TaskId in the response
+            task_id = getattr(response.body, 'TaskId', None)
+            if task_id:
+                result += f"\nTask ID: {task_id}"
+
+            return [TextContent(type="text", text=result)]
+        else:
+            return [TextContent(type="text", text=f"No response received from the API. The operation may have failed.")]
+
+    except Exception as e:
+        logger.error(f"Error modifying PolarDB node parameters: {str(e)}")
+        return [TextContent(type="text", text=f"Error modifying parameters: {str(e)}")]
+
 # Add this function to your code to handle creating PolarDB clusters
 def polardb_create_cluster(arguments: dict) -> list[TextContent]:
     """Create a new PolarDB cluster"""
@@ -1071,6 +1140,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return polardb_create_cluster(arguments)
     elif name == "polardb_describe_db_node_parameters":
         return polardb_describe_db_node_parameters(arguments)
+    elif name == "polardb_modify_db_node_parameters":
+        return polardb_modify_db_node_parameters(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 
