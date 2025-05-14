@@ -496,6 +496,24 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["dbnode_class"]
             }
+        ),
+        Tool(
+            name="polardb_describe_db_node_parameters",
+            description="Get configuration parameters for a specific PolarDB database node",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "dbnode_id": {
+                        "type": "string",
+                        "description": "The ID of the PolarDB database node"
+                    },
+                    "db_cluster_id": {
+                        "type": "string",
+                        "description": "The ID of the PolarDB cluster"
+                    }
+                },
+                "required": ["dbnode_id", "db_cluster_id"]
+            }
         )
     ]
 
@@ -920,6 +938,49 @@ def polardb_describe_available_resources(arguments: dict = None) -> list[TextCon
         logger.error(f"Error describing PolarDB available resources: {str(e)}")
         return [TextContent(type="text", text=f"Error retrieving available resources: {str(e)}")]
 
+def polardb_describe_db_node_parameters(arguments: dict) -> list[TextContent]:
+    """Get configuration parameters for a specific PolarDB database node"""
+    dbnode_id = arguments.get("dbnode_id")
+    db_cluster_id = arguments.get("db_cluster_id")
+
+    if not dbnode_id:
+        return [TextContent(type="text", text="Database node ID is required")]
+
+    if not db_cluster_id:
+        return [TextContent(type="text", text="DB cluster ID is required")]
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    try:
+        # Create request for describing DB node parameters
+        request = polardb_20170801_models.DescribeDBNodesParametersRequest(
+            dbnode_ids=dbnode_id,
+            dbcluster_id=db_cluster_id
+        )
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_dbnodes_parameters_with_options(request, runtime)
+
+        # Format the response
+        if hasattr(response, 'body') and response.body:
+            try:
+                # Try to parse the response as JSON for better formatting
+                import json
+                formatted_response = json.dumps(response.body.to_map(), indent=2)
+                return [TextContent(type="text", text=f"Parameters for DB node {dbnode_id}:\n{formatted_response}")]
+            except Exception:
+                # Fallback to string representation if JSON conversion fails
+                return [TextContent(type="text", text=f"Parameters for DB node {dbnode_id}:\n{str(response.body)}")]
+        else:
+            return [TextContent(type="text", text=f"No parameters found for DB node {dbnode_id} in cluster {db_cluster_id}")]
+
+    except Exception as e:
+        logger.error(f"Error describing PolarDB node parameters: {str(e)}")
+        return [TextContent(type="text", text=f"Error retrieving parameters: {str(e)}")]
+
 # Add this function to your code to handle creating PolarDB clusters
 def polardb_create_cluster(arguments: dict) -> list[TextContent]:
     """Create a new PolarDB cluster"""
@@ -1008,6 +1069,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return polardb_describe_available_resources(arguments)
     elif name == "polardb_create_cluster":
         return polardb_create_cluster(arguments)
+    elif name == "polardb_describe_db_node_parameters":
+        return polardb_describe_db_node_parameters(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 
