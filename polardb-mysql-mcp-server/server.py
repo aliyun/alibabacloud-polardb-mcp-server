@@ -10,8 +10,10 @@ from mysql.connector import connect, Error
 from mcp.types import Resource, Tool, TextContent, ResourceTemplate
 from pydantic import AnyUrl
 from dotenv import load_dotenv
+from doc_import import DocImport
 import asyncio
 import sqlparse
+import numbers
 enable_write = False
 enable_update = False
 enable_insert = False
@@ -175,6 +177,38 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["model"]
             }
+        ),
+         Tool(
+            name="import_doc",
+            description="将本地某个目录下的所有后缀为docx和md文件导入到PolarDB中,生成一个知识库",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "dir": {
+                        "type": "string",
+                        "description": "本地目录"
+                    }
+                },
+                "required": ["dir"]
+            }
+        ),
+        Tool(
+            name="search_doc",
+            description="从PolarDB中搜索相关的知识",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "要搜索的内容"
+                    },
+                    "count": {
+                        "type": "number",
+                        "description": "返回的知识的条目,默认为5条"
+                    }
+                },
+                "required": ["text"]
+            }
         )
     ]
 
@@ -235,7 +269,7 @@ def execute_sql(arguments: str) -> str:
     config = get_db_config()
     query = arguments.get("query")
     if not query:
-        raise ValueError("Query is required")
+        raise ValueError("query is required for tool execute_sql")
     operation_type = get_sql_operation_type(query)
     logger.info(f"SQL operation type: {operation_type}")
     global enable_write,enable_update,enable_insert,enable_ddl
@@ -268,6 +302,26 @@ def execute_sql(arguments: str) -> str:
         except Error as e:
             logger.error(f"Error executing SQL '{query}': {e}")
             return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
+
+def import_doc(arguments: str):
+    dir_path = arguments.get("dir")
+    if not dir_path:
+        logger.error("dir is required")
+        raise ValueError("dir is required for tool import_doc")
+    config = get_db_config()
+    doc_import = DocImport(config)
+    result_text = doc_import.import_doc(dir_path)
+    return [TextContent(type="text", text=f"{result_text}")]
+def search_doc(arguments: str):
+    text = arguments.get("text")
+    if not text:
+        logger.error("text is required")
+        raise ValueError("text is required for tool search_doc")
+    count = arguments.get("count") or 5
+    config = get_db_config()
+    doc_import = DocImport(config)
+    result = doc_import.query_knowledge(text,count)
+    return [TextContent(type="text", text=f"{result}")]
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
@@ -279,6 +333,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         if query_dict is None:
             raise ValueError("Missing 'query_dict' in arguments")
         return polar4ai_create_models(query_dict)
+    elif name == "import_doc":
+        return import_doc(arguments)
+    elif name == "search_doc":
+        return search_doc(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 def create_starlette_app(app: Server, *, debug: bool = False) -> Starlette:
