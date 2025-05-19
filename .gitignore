@@ -21,4 +21,4 @@ polardb-postgresql-mcp-server/*.egg-info
 # Virtual environments
 polardb-postgresql-mcp-server/.venv
 polardb-postgresql-mcp-server/.env
-polardb-postgresql-mcp-server/.test/*
+polardb-postgresql-mcp-server/.test/*polardb-openapi-mcp-server/__pycache__/doc_import.cpython-313.pyc

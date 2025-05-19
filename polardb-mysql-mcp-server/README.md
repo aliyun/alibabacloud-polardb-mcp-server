@@ -19,8 +19,7 @@ PolarDB MySQL MCP Server
 * SSE_BIND_HOST: The host address to bind for SSE mode  
 * SSE_BIND_PORT: The port to bind for SSE mode  
 * RUN_MODE: The run mode(sse|stdio),(default:sse)
-* ALIBABA_CLOUD_ACCESS_KEY_ID: Access Key ID of your Alibaba Cloud account
-* ALIBABA_CLOUD_ACCESS_KEY_SECRET: Access Key Secret of your Alibaba Cloud account
+
 # Build and Run
   git clone https://github.com/aliyun/alibabacloud-polardb-mcp-server.git  
   cd alibabacloud-polardb-mcp-server/polardb-mysql-mcp-server  
@@ -32,21 +31,7 @@ PolarDB MySQL MCP Server
 ## Tools
 * execute_sql: execute sql  
 * polar4ai_create_models: create AI models using Polar4ai syntax. Please ensure that the PolarDB AI node has been activated in the current database. For usage instructions, please refer to: https://help.aliyun.com/zh/polardb/polardb-for-mysql/user-guide/polardb-for-ai/?spm=a2c4g.11186623.help-menu-2249963.d_5_25.5cef3367txDrU2&scm=20140722.H_439225._.OR_help-T_cn~zh-V_1
-* polardb_describe_regions: List all available regions for Alibaba Cloud PolarDB
-* polardb_describe_db_clusters: List all PolarDB clusters in a specific region
-* polardb_describe_db_cluster: Get detailed information about a specific PolarDB cluster
-* polardb_describe_available_resources: List available resources for creating PolarDB clusters
-* polardb_create_cluster: Create a new PolarDB cluster
-## Resources
-* polardb-mysql://tables: List all tables for PolarDB MySQL in the current database  
-* polardb-mysql://models: List all AI models for PolarDB MySQL AI node in the current database
-* polardb-mysql://regions: List all available regions for Alibaba Cloud PolarDB
-* polardb-mysql://clusters: List all PolarDB clusters across all regions
-## Resource Templates
-* polardb-mysql://{table}/field: get the name,type and comment of the field in the table  
-* polardb-mysql://{table}/data:  get data from the table,default limit 50 rows
-* polardb-mysql://{{region_id}}/clusters: get all PolarDB clusters in a specific region
-polardb-mysql://classes/{{region_id}}/{{db_type}}: get all PolarDB classes specifications for a specific region and database type
+
 # Usage
 ## Run with source code  
 ```json
@@ -102,21 +87,6 @@ polardb-mysql://classes/{{region_id}}/{{db_type}}: get all PolarDB classes speci
     }
   }
 }
-```
-## Claude
-1. config for claude_desktop_config.json
-```json
-{
-    "polardb-mysql-mcp-server": {
-      "command": "/bin/bash",
-      "args": [
-        "-c",
-        "cd your_path/git/polardb_mcp_server/polardb-mysql-mcp-server && source ./bin/activate && python server.py"
-      ]
-    }
-  }
-}
-
 ```
 
 ## Client
