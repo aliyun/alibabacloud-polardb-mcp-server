@@ -153,26 +153,45 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "model": {  # Add a property name here
-                        "type": "json",
-                        "description": """ 
-                        各字段意义如下
-                        model_name:模型名称
-                        model_class:模型算法,可以如下取值
-                            * lightgbm(LightGBM算法)
-                            * deepfm(DeepFM算法))
-                            * kmeans(K均值聚类算法（K-Means))
-                            * randomforestreg(随机森林回归算法（Random Forest Regression))
-                            * gbrt(梯度提升回归树算法（GBRT))
-                            * gbdt(决策树算法（GBDT))
-                            * linearreg(线性回归算法（Linear Regression))
-                            * svr(支持向量回归算法（SVR))
-                            * bst(BST算法)
-                        table_reference：输入特征表名称
-                        x_cols: 模型输入列(table_reference中的列),以逗号分隔
-                        y_cols: 模型输出列(table_reference中的列),以逗号分隔
-                        完整的例子如下: {"model_name":"gbdt_test","model_class":"gbdt","x_cols":"test_feature1,test_feature2","y_cols":"test_label","table_name":"testfile"}
-                        """
+                    "model":{
+                        "type": "object",
+                        "properties": {
+                            "model_name": {
+                                "type": "string",
+                                "description": "模型名称"
+                            },
+                            "model_class": {
+                                "type": "string",
+                                "enum": [
+                                    "lightgbm", "deepfm", "kmeans", "randomforestreg",
+                                    "gbrt", "gbdt", "linearreg", "svr", "bst"
+                                ],
+                                "description":"""
+                                    模型类型算法选择，可选值有：
+                                        lightgbm-LightGBM算法,
+                                        deepfm-DeepFM算法,
+                                        kmeans-K均值聚类算法,
+                                        randomforestreg-随机森林回归算法,
+                                        gbrt-梯度提升回归树算法,gbdt-决策树算法,
+                                        linearreg-线性回归算法,
+                                        svr-支持向量回归算法,
+                                        bst-BST算法
+                                    """
+                            },
+                            "table_name": {
+                                "type": "string",
+                                "description":"数据库中输入特征表的表名"
+                                },
+                            "x_cols": {
+                                "type": "string",
+                                "description":"数据库中输入特征表的列名，多个列用逗号分隔"
+                                },
+                            "y_cols": {
+                                "type": "string",
+                                "description":"数据库中输入特征表的列名，多个列用逗号分隔"
+                                }
+                        },
+                        "required": ["model_name", "model_class", "table_name", "x_cols", "y_cols"]
                     }
                 },
                 "required": ["model"]
