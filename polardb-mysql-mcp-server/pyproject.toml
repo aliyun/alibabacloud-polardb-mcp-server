@@ -1,8 +1,8 @@
 [project]
 name = "polardb-mysql-mcp-server"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+version = "0.5.0"
+description = "MCP server for polardb mysql"
+readme = "README_pypi.md"
 requires-python = ">=3.12"
 dependencies = [
     "mcp[cli]>=1.6.0",
@@ -12,3 +12,26 @@ dependencies = [
     "langchain-community>=0.3.0",
     "mammoth>=1.4.0",
 ]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.3.5"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages]
+find = { where = ["src"] }
+
+[project.scripts]
+run_polardb_mysql_mcp_server= "polardb_mysql_mcp_server:main"
+
+
+[tool.pytest.ini_options]
+pythonpath = "src"
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s - %(levelname)s - %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"

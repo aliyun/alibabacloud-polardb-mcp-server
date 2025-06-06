@@ -1,10 +1,6 @@
 PolarDB MySQL MCP Server
 =======================
-# Prepare
-1. install uv(if not exist)  
-  curl -LsSf https://astral.sh/uv/install.sh | sh  
-2. The project requires at least Python 3.10, if not available then install Python 3.12  
-  uv python install 3.12  
+PolarDB MySQL MCP Server serves as a universal interface between AI Agents and PolarDB MySQL databases. It enables seamless communication between AI Agents and PolarDB MySQL, helping AI Agents retrieve PolarDB MySQL database metadata and execute SQL operations.
 # Environment Variables  
   The following environment variables are required to connect to PolarDB MySQL database,environment Variables can be set in .env file  or set in command line  
 * POLARDB_MYSQL_HOST: Database host address  
@@ -19,13 +15,7 @@ PolarDB MySQL MCP Server
 * SSE_BIND_HOST: The host address to bind for SSE mode  
 * SSE_BIND_PORT: The port to bind for SSE mode  
 * RUN_MODE: The run mode(sse|stdio),(default:sse)  
-# Build and Run
-  git clone https://github.com/aliyun/alibabacloud-polardb-mcp-server.git  
-  cd alibabacloud-polardb-mcp-server/polardb-mysql-mcp-server  
-  uv venv  
-  source .venv/bin/activate  
-  cp .env_example .env #set env file with your database information  
-  uv run src/polardb_mysql_mcp_server/server.py  
+
 # Components
 ## Tools
 * execute_sql: 执行符合PolarDB MySQL语法的SQL语句
@@ -38,37 +28,9 @@ PolarDB MySQL MCP Server
 * polardb-mysql://models: 列出当前数据库中创建的所有自定义算法模型   
 ## Resource Templates
 * polardb-mysql://{table}/field: 获取到表中字段的名称、类型和注释
-* polardb-mysql://{table}/data: 从表中获取数据，默认获取50条数据 
-# Usage
-## Run with source code  
-```json
-{
-  "mcpServers": {
-    "polardb-mysql-mcp-server": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/xxxx/alibabacloud-polardb-mcp-server/polardb-mysql-mcp-server",
-        "run",
-        "src/polardb_mysql_mcp_server/server.py"
-      ],
-      "env": {
-        "POLARDB_MYSQL_HOST": "127.0.0.1",
-        "POLARDB_MYSQL_PORT": "15001",
-        "POLARDB_MYSQL_USER": "xxxx",
-        "POLARDB_MYSQL_PASSWORD": "xxx",
-        "POLARDB_MYSQL_DATABASE": "xxx",
-        "RUN_MODE": "stdio",
-        "POLARDB_MYSQL_ENABLE_UPDATE": "false",
-        "POLARDB_MYSQL_ENABLE_UPDATE": "false",
-        "POLARDB_MYSQL_ENABLE_INSER": "false",
-        "POLARDB_MYSQL_ENABLE_DDL": "false"
-      }
-    }
-  }
-}
-```
-## Run with packages from PyPI
+* polardb-mysql://{table}/data: 从表中获取数据，默认获取50条数据    
+## Cursor 
+1. config for mcp.json  
 ```json
 {
   "mcpServers": {

@@ -10,7 +10,7 @@ from mysql.connector import connect, Error
 from mcp.types import Resource, Tool, TextContent, ResourceTemplate
 from pydantic import AnyUrl
 from dotenv import load_dotenv
-from doc_import import DocImport
+from polardb_mysql_mcp_server.doc_import import DocImport
 import asyncio
 import sqlparse
 import numbers
@@ -148,6 +148,58 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="polar4ai_update_index_for_text_2_sql",
+            description="""
+                        利用polardb的AI节点,为当前数据库的表更新索引,这些索引用于文本转换SQL或者chart(polar4ai_text_2_sql/polar4ai_text_2_chart).
+                        一般在更新索引后,如果该数据库没有再执行DDL更改表结构,则无需执行该更新操作,否则需要执行该更新操作.
+                        默认如果发现索引表schema_index有数据,且force_update为false,则不执行更新操作,否则会更新索引表schema_index.
+                        更新过程需要一定的时间,请耐心等待.
+                        """,
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "force_update": {
+                        "type": "boolean",
+                        "description": "是否强制更新索引,若果schema_index有数据并且该值为false,则不执行更新操作,否则强制更新"
+                    }
+                },
+                "required": ["force_update"]
+            }
+        ),
+        Tool(
+            name="polar4ai_text_2_sql",
+            description="利用polardb的AI节点,将用户的文本转换成sql语句",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "需要转换的文本"
+                    }
+                },
+                "required": ["text"]
+            }
+        ),
+        Tool(
+            name="polar4ai_text_2_chart",
+            description="利用polardb的AI节点,将用户的文本统计需求直接转换成图表",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "需要转换的文本"
+                    },
+                    "chart_type": {
+                        "type": "string",
+                        "enum": ["柱状图", "折线图", "饼状图"],
+                        "description": "图表类型"
+                    }
+                },
+                "required": ["text"]
+            }
+        ),
+        Tool(
             name="polar4ai_create_models",
             description="使用polar4ai语法，创建模型，参数只含有以下字段model_name,model_class,x_cols,y_cols,table_name。",
             inputSchema={
@@ -198,7 +250,7 @@ async def list_tools() -> list[Tool]:
             }
         ),
          Tool(
-            name="import_doc",
+            name="polar4ai_import_doc",
             description="将本地某个目录下的所有后缀为docx和md文件导入到PolarDB中,生成一个知识库",
             inputSchema={
                 "type": "object",
@@ -212,7 +264,7 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="search_doc",
+            name="polar4ai_search_doc",
             description="从PolarDB中搜索相关的知识",
             inputSchema={
                 "type": "object",
@@ -231,6 +283,87 @@ async def list_tools() -> list[Tool]:
         )
     ]
 
+def exec_sql(config, sql):
+    rows=[]
+    try:
+        with connect(**config) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql)
+                if cursor.description is not None:
+                    return cursor.fetchall(),True
+                else:
+                    conn.commit()
+                    return rows,True
+    except Error as e:
+        logger.error(f"Error executing SQL '{sql}': {e}")
+        return rows, False
+def polar4ai_update_index_for_text_2_sql(arguments: str, index_table_name='schema_index'):
+    config = get_db_config()
+    force_update = arguments.get("force_update")
+    if force_update is None:
+        raise ValueError("force_update is required for tool polar4ai_update_index_for_text_2_sql")
+    table_sql = f'/*polar4ai*/show tables;'
+    rows, ok = exec_sql(config, table_sql)
+    if not ok:
+        raise ValueError("Error executing SQL '/*polar4ai*/show tables'")
+    index_table_exist = False
+    for row in rows:
+        if row[0] == index_table_name:
+            index_table_exist = True
+            break
+    logging.info(f"force_update:{force_update},index_table_exist:{index_table_exist}")
+    if not index_table_exist:
+        create_index_sql = f'/*polar4ai*/CREATE TABLE {index_table_name}(id integer, table_name varchar, table_comment text_ik_max_word, table_ddl text_ik_max_word, column_names text_ik_max_word, column_comments text_ik_max_word, sample_values text_ik_max_word, vecs vector_768, ext text_ik_max_word, PRIMARY KEY (id));'
+        rows, ok = exec_sql(config, create_index_sql)
+        if not ok:
+            raise ValueError("Error executing SQL '/*polar4ai*/CREATE TABLE {index_table_name}'")
+    table_count=0
+    table_count_sql = f'/*polar4ai*/SELECT COUNT(*) FROM {index_table_name};'
+    rows, ok = exec_sql(config, table_count_sql)
+    if ok and len(rows) == 1:
+        table_count = int(rows[0][0])
+    else:
+        raise ValueError("Error executing SQL '/*polar4ai*/SELECT COUNT(*) FROM {index_table_name}'")
+    if force_update or table_count == 0:
+        update_sql=f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_text2vec, SELECT '') WITH (mode='async', resource='schema') INTO {index_table_name};"
+        rows, ok = exec_sql(config, update_sql)
+        if not ok:
+            raise ValueError("Error executing SQL '/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_text2vec, SELECT xxxx'")
+    return [TextContent(type="text", text=f"更新索引表({index_table_name})成功")]
+
+
+def polar4ai_text_2_sql(arguments: str,index_table_name='schema_index'):
+    config = get_db_config()
+    text = arguments.get("text")
+    if not text:
+        raise ValueError("text is required for tool polar4ai_text_2_sql")
+    sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT '{text}') WITH (basic_index_name='{index_table_name}')";
+    rows, ok = exec_sql(config, sql)
+    if ok and len(rows) == 1:
+        return [TextContent(type="text", text=f"{rows[0][0]}")]
+    else :
+        raise ValueError("Error executing SQL '/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT xxxx'")
+def polar4ai_text_2_chart(arguments: str,index_table_name='schema_index'):
+    config = get_db_config()
+    text = arguments.get("text")
+    chart_type= arguments.get("chart_type")
+    if not text:
+        raise ValueError("text is required for tool polar4ai_text_2_chart")
+    if not chart_type:
+        chart_type='柱状图'
+    sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT '{text}') WITH (basic_index_name='{index_table_name}')";
+    rows, ok = exec_sql(config, sql)
+    if ok and len(rows) == 1:
+        sql = rows[0][0]
+    else:
+        ValueError("Error executing SQL '/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT xxxx'")
+    sql = sql.replace(";","")
+    chart_sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2chart,{sql}) WITH (usr_query = '{text},{chart_type}', result_type = 'IMAGE');"
+    rows, ok = exec_sql(config, chart_sql)
+    if ok and len(rows) == 1:
+        return [TextContent(type="text", text=f"{rows[0][0]}")]
+    else:
+        raise ValueError("Error executing SQL '/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2chart, SELECT xxxx'")
 def polar4ai_create_models(model: dict) -> list[TextContent]:
     """
     使用polar4ai语法，创建模型
@@ -322,7 +455,7 @@ def execute_sql(arguments: str) -> str:
             logger.error(f"Error executing SQL '{query}': {e}")
             return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
 
-def import_doc(arguments: str):
+def polar4ai_import_doc(arguments: str):
     dir_path = arguments.get("dir")
     if not dir_path:
         logger.error("dir is required")
@@ -331,7 +464,7 @@ def import_doc(arguments: str):
     doc_import = DocImport(config)
     result_text = doc_import.import_doc(dir_path)
     return [TextContent(type="text", text=f"{result_text}")]
-def search_doc(arguments: str):
+def polar4ai_search_doc(arguments: str):
     text = arguments.get("text")
     if not text:
         logger.error("text is required")
@@ -346,16 +479,22 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
     if name == "execute_sql":
         return execute_sql(arguments)
+    elif name == "polar4ai_update_index_for_text_2_sql":
+        return polar4ai_update_index_for_text_2_sql(arguments)
+    elif name == "polar4ai_text_2_sql":
+        return polar4ai_text_2_sql(arguments)
+    elif name == "polar4ai_text_2_chart":
+        return polar4ai_text_2_chart(arguments)
     elif name == "polar4ai_create_models":
         # Extract the query_dict from arguments
         query_dict = arguments.get("model")
         if query_dict is None:
             raise ValueError("Missing 'query_dict' in arguments")
         return polar4ai_create_models(query_dict)
-    elif name == "import_doc":
-        return import_doc(arguments)
-    elif name == "search_doc":
-        return search_doc(arguments)
+    elif name == "polar4ai_import_doc":
+        return polar4ai_import_doc(arguments)
+    elif name == "polar4ai_search_doc":
+        return polar4ai_search_doc(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 def create_starlette_app(app: Server, *, debug: bool = False) -> Starlette:
