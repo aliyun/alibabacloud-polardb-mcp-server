@@ -401,6 +401,108 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["db_cluster_id", "dbnode_ids", "parameters"]
             }
+        ),
+        Tool(
+            name="polardb_describe_slow_log_records",
+            description="Get slow log records for a specific PolarDB cluster within a time range",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "region_id": {
+                        "type": "string",
+                        "description": "Region ID where the cluster is located (e.g., cn-hangzhou)"
+                    },
+                    "db_cluster_id": {
+                        "type": "string",
+                        "description": "The ID of the PolarDB cluster"
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Start time for slow log query in ISO 8601 format (e.g., 2025-05-28T16:00Z)"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End time for slow log query in ISO 8601 format (e.g., 2025-05-29T04:00Z)"
+                    },
+                    "node_id": {
+                        "type": "string",
+                        "description": "The ID of the database node (optional)"
+                    },
+                    "dbname": {
+                        "type": "string",
+                        "description": "Database name to filter slow logs (optional)"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of records per page (default: 30, max: 2147483647)"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)"
+                    },
+                    "sqlhash": {
+                        "type": "string",
+                        "description": "SQL hash to filter specific slow queries (optional)"
+                    }
+                },
+                "required": ["region_id", "db_cluster_id", "start_time", "end_time"]
+            }
+        ),
+        Tool(
+            name="polardb_describe_db_node_performance",
+            description="Get performance metrics for a specific PolarDB database node within a time range",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "dbnode_id": {
+                        "type": "string",
+                        "description": "The ID of the PolarDB database node (e.g., pi-1udn03901ed4u2i1e)"
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Performance metrics to retrieve, comma-separated (e.g., 'PolarDBDiskUsage,PolarDBCPU,PolarDBMemory')"
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Start time for performance query in ISO 8601 format (e.g., 2025-05-28T16:00Z)"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End time for performance query in ISO 8601 format (e.g., 2025-05-29T04:00Z)"
+                    },
+                    "db_cluster_id": {
+                        "type": "string",
+                        "description": "The ID of the PolarDB cluster (optional, but recommended for better API compatibility)"
+                    }
+                },
+                "required": ["dbnode_id", "key", "start_time", "end_time"]
+            }
+        ),
+        Tool(
+            name="polardb_describe_db_cluster_performance",
+            description="Get performance metrics for a specific PolarDB cluster within a time range",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "db_cluster_id": {
+                        "type": "string",
+                        "description": "The ID of the PolarDB cluster (e.g., pc-1udn03901ed4u2i1e)"
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Performance metrics to retrieve, comma-separated (e.g., 'PolarDBDiskUsage,PolarDBCPU,PolarDBMemory')"
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Start time for performance query in ISO 8601 format (e.g., 2025-05-28T16:00Z)"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End time for performance query in ISO 8601 format (e.g., 2025-05-29T04:00Z)"
+                    }
+                },
+                "required": ["db_cluster_id", "key", "start_time", "end_time"]
+            }
         )
     ]
 
@@ -891,6 +993,452 @@ def polardb_create_cluster(arguments: dict) -> list[TextContent]:
     except Exception as e:
         logger.error(f"Error creating PolarDB cluster: {str(e)}")
         return [TextContent(type="text", text=f"Error creating PolarDB cluster: {str(e)}")]
+
+def polardb_describe_slow_log_records(arguments: dict) -> list[TextContent]:
+    """Get slow log records for a specific PolarDB cluster within a time range"""
+    region_id = arguments.get("region_id")
+    db_cluster_id = arguments.get("db_cluster_id")
+    start_time = arguments.get("start_time")
+    end_time = arguments.get("end_time")
+
+    # Validate required parameters
+    if not region_id:
+        return [TextContent(type="text", text="Region ID is required")]
+    if not db_cluster_id:
+        return [TextContent(type="text", text="DB Cluster ID is required")]
+    if not start_time:
+        return [TextContent(type="text", text="Start time is required")]
+    if not end_time:
+        return [TextContent(type="text", text="End time is required")]
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    try:
+        # Create request for describing slow log records
+        request = polardb_20170801_models.DescribeSlowLogRecordsRequest(
+            region_id=region_id,
+            dbcluster_id=db_cluster_id,
+            start_time=start_time,
+            end_time=end_time
+        )
+
+        # Set optional parameters if provided
+        if "node_id" in arguments and arguments["node_id"]:
+            request.node_id = arguments["node_id"]
+        if "dbname" in arguments and arguments["dbname"]:
+            request.dbname = arguments["dbname"]
+        if "page_size" in arguments and arguments["page_size"]:
+            request.page_size = arguments["page_size"]
+        if "page_number" in arguments and arguments["page_number"]:
+            request.page_number = arguments["page_number"]
+        if "sqlhash" in arguments and arguments["sqlhash"]:
+            request.sqlhash = arguments["sqlhash"]
+
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_slow_log_records_with_options(request, runtime)
+
+        # Format the response
+        if hasattr(response, 'body') and response.body:
+            try:
+                # Try to convert response to dictionary for better parsing
+                import json
+                response_dict = json.loads(str(response.to_map()))
+ 
+                if 'body' in response_dict:
+                    body = response_dict['body']
+
+                    # Format header information
+                    result_lines = [
+                        f"Slow Log Records for Cluster: {db_cluster_id}",
+                        f"Region: {region_id}"
+                    ]
+
+                    # Add node ID if specified
+                    if "node_id" in arguments and arguments["node_id"]:
+                        result_lines.append(f"Node ID: {arguments['node_id']}")
+
+                    result_lines.extend([
+                        f"Time Range: {start_time} to {end_time}",
+                        f"Total Records: {body.get('TotalRecordCount', 'N/A')}",
+                        f"Page Number: {body.get('PageNumber', 'N/A')}",
+                        f"Page Size: {body.get('PageRecordCount', 'N/A')}",
+                        "=" * 80
+                    ])
+
+                    # Parse slow log items
+                    if 'Items' in body and 'SlowLogRecord' in body['Items']:
+                        slow_logs = body['Items']['SlowLogRecord']
+
+                        # Handle case where slow_logs might not be a list
+                        if not isinstance(slow_logs, list):
+                            slow_logs = [slow_logs]
+
+                        for i, log in enumerate(slow_logs, 1):
+                            log_info = [
+                                f"\n--- Slow Log Record #{i} ---",
+                                f"Create Time: {log.get('CreateTime', 'N/A')}",
+                                f"Database Name: {log.get('DBName', 'N/A')}",
+                                f"DB Node ID: {log.get('DBNodeId', 'N/A')}",
+                                f"Max Execution Time: {log.get('MaxExecutionTime', 'N/A')} seconds",
+                                f"Max Lock Time: {log.get('MaxLockTime', 'N/A')} seconds",
+                                f"Parse Max Row Count: {log.get('ParseMaxRowCount', 'N/A')}",
+                                f"Parse Total Row Counts: {log.get('ParseTotalRowCounts', 'N/A')}",
+                                f"Return Max Row Count: {log.get('ReturnMaxRowCount', 'N/A')}",
+                                f"Return Total Row Counts: {log.get('ReturnTotalRowCounts', 'N/A')}",
+                                f"SQL Hash: {log.get('SQLHash', 'N/A')}",
+                                f"SQL Text: {log.get('SQLText', 'N/A')}",
+                                f"Total Execution Counts: {log.get('TotalExecutionCounts', 'N/A')}",
+                                f"Total Execution Times: {log.get('TotalExecutionTimes', 'N/A')} seconds",
+                                f"Total Lock Times: {log.get('TotalLockTimes', 'N/A')} seconds"
+                            ]
+                            result_lines.extend(log_info)
+                            result_lines.append("-" * 60)
+
+                        return [TextContent(type="text", text="\n".join(result_lines))]
+                    else:
+                        result_lines.append("No slow log records found in the specified time range.")
+                        return [TextContent(type="text", text="\n".join(result_lines))]
+                else:
+                    # Fallback: use string representation
+                    return [TextContent(type="text", text=f"Slow log records response:\n{str(response.body)}")]
+
+            except Exception as parse_error:
+                logger.error(f"Error parsing slow log response: {str(parse_error)}")
+                # Fallback to raw response
+                return [TextContent(type="text", text=f"Slow log records (raw response):\n{str(response.body)}")]
+        else:
+            return [TextContent(type="text", text=f"No slow log records found for cluster {db_cluster_id} in the specified time range.")]
+
+    except Exception as e:
+        logger.error(f"Error describing slow log records: {str(e)}")
+        if hasattr(e, 'message'):
+            error_msg = f"Error retrieving slow log records: {e.message}"
+            if hasattr(e, 'data') and e.data and e.data.get("Recommend"):
+                error_msg += f"\nRecommendation: {e.data.get('Recommend')}"
+        else:
+            error_msg = f"Error retrieving slow log records: {str(e)}"
+
+        return [TextContent(type="text", text=error_msg)]
+
+def polardb_describe_db_node_performance(arguments: dict) -> list[TextContent]:
+    """Get performance metrics for a specific PolarDB database node within a time range"""
+    dbnode_id = arguments.get("dbnode_id")
+    key = arguments.get("key")
+    start_time = arguments.get("start_time")
+    end_time = arguments.get("end_time")
+    db_cluster_id = arguments.get("db_cluster_id")
+
+    # Validate required parameters
+    if not dbnode_id:
+        return [TextContent(type="text", text="Database node ID is required")]
+    if not key:
+        return [TextContent(type="text", text="Performance key is required")]
+    if not start_time:
+        return [TextContent(type="text", text="Start time is required")]
+    if not end_time:
+        return [TextContent(type="text", text="End time is required")]
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    try:
+        # Create request for describing DB node performance
+        request = polardb_20170801_models.DescribeDBNodePerformanceRequest(
+            dbnode_id=dbnode_id,
+            key=key,
+            start_time=start_time,
+            end_time=end_time
+        )
+
+        # Add cluster ID if provided (some API versions may require this)
+        if db_cluster_id:
+            # Note: Check if your API version supports db_cluster_id parameter
+            # If not supported, you can remove this part
+            try:
+                request.db_cluster_id = db_cluster_id
+            except AttributeError:
+                # Ignore if the parameter is not supported in this API version
+                pass
+
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_dbnode_performance_with_options(request, runtime)
+
+        # Format the response
+        if hasattr(response, 'body') and response.body:
+            try:
+                # Try to convert response to dictionary for better parsing
+                import json
+                response_dict = json.loads(str(response.to_map()))
+
+                if 'body' in response_dict:
+                    body = response_dict['body']
+
+                    # Format header information
+                    result_lines = [
+                        f"DB Node Performance Report",
+                        f"Node ID: {body.get('DBNodeId', dbnode_id)}",
+                        f"DB Type: {body.get('DBType', 'N/A')}",
+                        f"DB Version: {body.get('DBVersion', 'N/A')}",
+                        f"Time Range: {body.get('StartTime', start_time)} to {body.get('EndTime', end_time)}",
+                        f"Request ID: {body.get('RequestId', 'N/A')}",
+                        "=" * 80
+                    ]
+
+                    # Parse performance data
+                    if 'PerformanceKeys' in body and 'PerformanceItem' in body['PerformanceKeys']:
+                        performance_items = body['PerformanceKeys']['PerformanceItem']
+
+                        # Handle case where performance_items might not be a list
+                        if not isinstance(performance_items, list):
+                            performance_items = [performance_items]
+
+                        for item in performance_items:
+                            metric_name = item.get('MetricName', 'N/A')
+                            measurement = item.get('Measurement', 'N/A')
+
+                            result_lines.extend([
+                                f"\n--- Performance Metric: {measurement} ---",
+                                f"Metric Name: {metric_name}"
+                            ])
+
+                            # Parse performance data points
+                            if 'Points' in item and 'PerformanceItemValue' in item['Points']:
+                                points = item['Points']['PerformanceItemValue']
+
+                                # Handle case where points might not be a list
+                                if not isinstance(points, list):
+                                    points = [points]
+
+                                result_lines.append(f"Data Points ({len(points)} total):")
+
+                                # Sort points by timestamp for better readability
+                                try:
+                                    points_sorted = sorted(points, key=lambda x: x.get('Timestamp', 0))
+                                except (TypeError, KeyError):
+                                    points_sorted = points
+
+                                # Display data points
+                                for i, point in enumerate(points_sorted):
+                                    timestamp = point.get('Timestamp', 'N/A')
+                                    value = point.get('Value', 'N/A')
+
+                                    # Convert timestamp to readable format if it's a valid Unix timestamp
+                                    readable_time = 'N/A'
+                                    if timestamp != 'N/A':
+                                        try:
+                                            # Convert from milliseconds to seconds
+                                            timestamp_seconds = int(timestamp) / 1000
+                                            from datetime import datetime
+                                            readable_time = datetime.fromtimestamp(timestamp_seconds).strftime('%Y-%m-%d %H:%M:%S UTC')
+                                        except (ValueError, TypeError):
+                                            readable_time = str(timestamp)
+
+                                    result_lines.append(f"  {i+1:3d}. {readable_time} | Value: {value}")
+
+                                # Calculate some basic statistics if there are multiple points
+                                if len(points_sorted) > 1:
+                                    try:
+                                        numeric_values = [float(p.get('Value', 0)) for p in points_sorted if p.get('Value', '').replace('.', '').replace('-', '').isdigit()]
+                                        if numeric_values:
+                                            min_val = min(numeric_values)
+                                            max_val = max(numeric_values)
+                                            avg_val = sum(numeric_values) / len(numeric_values)
+                                            result_lines.extend([
+                                                f"  Statistics: Min={min_val:.2f}, Max={max_val:.2f}, Avg={avg_val:.2f}"
+                                            ])
+                                    except (ValueError, TypeError):
+                                        # Skip statistics if values are not numeric
+                                        pass
+                            else:
+                                result_lines.append("  No performance data points found")
+
+                            result_lines.append("-" * 60)
+
+                        return [TextContent(type="text", text="\n".join(result_lines))]
+                    else:
+                        result_lines.append("No performance data found for the specified parameters.")
+                        return [TextContent(type="text", text="\n".join(result_lines))]
+                else:
+                    # Fallback: use string representation
+                    return [TextContent(type="text", text=f"DB node performance response:\n{str(response.body)}")]
+
+            except Exception as parse_error:
+                logger.error(f"Error parsing performance response: {str(parse_error)}")
+                # Fallback to raw response
+                return [TextContent(type="text", text=f"DB node performance (raw response):\n{str(response.body)}")]
+        else:
+            return [TextContent(type="text", text=f"No performance data found for node {dbnode_id} in the specified time range.")]
+
+    except Exception as e:
+        logger.error(f"Error describing DB node performance: {str(e)}")
+        if hasattr(e, 'message'):
+            error_msg = f"Error retrieving performance data: {e.message}"
+            if hasattr(e, 'data') and e.data and e.data.get("Recommend"):
+                error_msg += f"\nRecommendation: {e.data.get('Recommend')}"
+        else:
+            error_msg = f"Error retrieving performance data: {str(e)}"
+
+        return [TextContent(type="text", text=error_msg)]
+
+def polardb_describe_db_cluster_performance(arguments: dict) -> list[TextContent]:
+    """Get performance metrics for a specific PolarDB cluster within a time range"""
+    db_cluster_id = arguments.get("db_cluster_id")
+    key = arguments.get("key")
+    start_time = arguments.get("start_time")
+    end_time = arguments.get("end_time")
+
+    # Validate required parameters
+    if not db_cluster_id:
+        return [TextContent(type="text", text="Database cluster ID is required")]
+    if not key:
+        return [TextContent(type="text", text="Performance key is required")]
+    if not start_time:
+        return [TextContent(type="text", text="Start time is required")]
+    if not end_time:
+        return [TextContent(type="text", text="End time is required")]
+
+    client = create_client()
+    if not client:
+        return [TextContent(type="text", text="Failed to create PolarDB client. Please check your credentials.")]
+
+    try:
+        # Create request for describing DB cluster performance
+        request = polardb_20170801_models.DescribeDBClusterPerformanceRequest(
+            dbcluster_id=db_cluster_id,
+            key=key,
+            start_time=start_time,
+            end_time=end_time
+        )
+
+        runtime = util_models.RuntimeOptions()
+
+        # Call the API
+        response = client.describe_dbcluster_performance_with_options(request, runtime)
+
+        # Format the response (reuse the same logic as node performance)
+        if hasattr(response, 'body') and response.body:
+            try:
+                # Try to convert response to dictionary for better parsing
+                import json
+                response_dict = json.loads(str(response.to_map()))
+
+                if 'body' in response_dict:
+                    body = response_dict['body']
+
+                    # Format header information
+                    result_lines = [
+                        f"DB Cluster Performance Report",
+                        f"Cluster ID: {body.get('DBClusterId', db_cluster_id)}",
+                        f"DB Type: {body.get('DBType', 'N/A')}",
+                        f"DB Version: {body.get('DBVersion', 'N/A')}",
+                        f"Time Range: {body.get('StartTime', start_time)} to {body.get('EndTime', end_time)}",
+                        f"Request ID: {body.get('RequestId', 'N/A')}",
+                        "=" * 80
+                    ]
+
+                    # Parse performance data
+                    if 'PerformanceKeys' in body and 'PerformanceItem' in body['PerformanceKeys']:
+                        performance_items = body['PerformanceKeys']['PerformanceItem']
+
+                        # Handle case where performance_items might not be a list
+                        if not isinstance(performance_items, list):
+                            performance_items = [performance_items]
+
+                        for item in performance_items:
+                            metric_name = item.get('MetricName', 'N/A')
+                            measurement = item.get('Measurement', 'N/A')
+
+                            result_lines.extend([
+                                f"\n--- Performance Metric: {measurement} ---",
+                                f"Metric Name: {metric_name}"
+                            ])
+
+                            # Parse performance data points
+                            if 'Points' in item and 'PerformanceItemValue' in item['Points']:
+                                points = item['Points']['PerformanceItemValue']
+
+                                # Handle case where points might not be a list
+                                if not isinstance(points, list):
+                                    points = [points]
+
+                                result_lines.append(f"Data Points ({len(points)} total):")
+
+                                # Sort points by timestamp for better readability
+                                try:
+                                    points_sorted = sorted(points, key=lambda x: x.get('Timestamp', 0))
+                                except (TypeError, KeyError):
+                                    points_sorted = points
+
+                                # Display data points
+                                for i, point in enumerate(points_sorted):
+                                    timestamp = point.get('Timestamp', 'N/A')
+                                    value = point.get('Value', 'N/A')
+
+                                    # Convert timestamp to readable format if it's a valid Unix timestamp
+                                    readable_time = 'N/A'
+                                    if timestamp != 'N/A':
+                                        try:
+                                            # Convert from milliseconds to seconds
+                                            timestamp_seconds = int(timestamp) / 1000
+                                            from datetime import datetime
+                                            readable_time = datetime.fromtimestamp(timestamp_seconds).strftime('%Y-%m-%d %H:%M:%S UTC')
+                                        except (ValueError, TypeError):
+                                            readable_time = str(timestamp)
+
+                                    result_lines.append(f"  {i+1:3d}. {readable_time} | Value: {value}")
+
+                                # Calculate some basic statistics if there are multiple points
+                                if len(points_sorted) > 1:
+                                    try:
+                                        numeric_values = [float(p.get('Value', 0)) for p in points_sorted if p.get('Value', '').replace('.', '').replace('-', '').isdigit()]
+                                        if numeric_values:
+                                            min_val = min(numeric_values)
+                                            max_val = max(numeric_values)
+                                            avg_val = sum(numeric_values) / len(numeric_values)
+                                            result_lines.extend([
+                                                f"  Statistics: Min={min_val:.2f}, Max={max_val:.2f}, Avg={avg_val:.2f}"
+                                            ])
+                                    except (ValueError, TypeError):
+                                        # Skip statistics if values are not numeric
+                                        pass
+                            else:
+                                result_lines.append("  No performance data points found")
+
+                            result_lines.append("-" * 60)
+
+                        return [TextContent(type="text", text="\n".join(result_lines))]
+                    else:
+                        result_lines.append("No performance data found for the specified parameters.")
+                        return [TextContent(type="text", text="\n".join(result_lines))]
+                else:
+                    # Fallback: use string representation
+                    return [TextContent(type="text", text=f"DB cluster performance response:\n{str(response.body)}")]
+
+            except Exception as parse_error:
+                logger.error(f"Error parsing cluster performance response: {str(parse_error)}")
+                # Fallback to raw response
+                return [TextContent(type="text", text=f"DB cluster performance (raw response):\n{str(response.body)}")]
+        else:
+            return [TextContent(type="text", text=f"No performance data found for cluster {db_cluster_id} in the specified time range.")]
+
+    except Exception as e:
+        logger.error(f"Error describing DB cluster performance: {str(e)}")
+        if hasattr(e, 'message'):
+            error_msg = f"Error retrieving cluster performance data: {e.message}"
+            if hasattr(e, 'data') and e.data and e.data.get("Recommend"):
+                error_msg += f"\nRecommendation: {e.data.get('Recommend')}"
+        else:
+            error_msg = f"Error retrieving cluster performance data: {str(e)}"
+
+        return [TextContent(type="text", text=error_msg)]
+
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
@@ -909,6 +1457,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return polardb_describe_db_node_parameters(arguments)
     elif name == "polardb_modify_db_node_parameters":
         return polardb_modify_db_node_parameters(arguments)
+    elif name == "polardb_describe_slow_log_records":
+        return polardb_describe_slow_log_records(arguments)
+    elif name == "polardb_describe_db_node_performance":
+        return polardb_describe_db_node_performance(arguments)
+    elif name == "polardb_describe_db_cluster_performance":
+        return polardb_describe_db_cluster_performance(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 
