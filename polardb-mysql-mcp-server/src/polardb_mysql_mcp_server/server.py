@@ -6,6 +6,7 @@ from mcp.server import Server
 import uvicorn
 import logging
 import os
+import sys
 from mysql.connector import connect, Error
 from mcp.types import Resource, Tool, TextContent, ResourceTemplate
 from pydantic import AnyUrl
@@ -65,7 +66,6 @@ async def list_resources() -> list[Resource]:
         logger.error(f"Error listing resources: {str(e)}")
         raise
 
-
 @app.list_resource_templates()
 async def list_resource_templates() -> list[ResourceTemplate]:
     return [
@@ -82,51 +82,73 @@ async def list_resource_templates() -> list[ResourceTemplate]:
             mimeType="text/plain"
         )
     ]
+
 @app.read_resource()
 async def read_resource(uri: AnyUrl) -> str:
-    """Read table contents and schema"""
-    config = get_db_config()
+    """Read resource contents"""
     uri_str = str(uri)
     logger.info(f"Reading resource: {uri_str}")
-    prefix = "polardb-mysql://"
-    if not uri_str.startswith(prefix):
-        logger.error(f"Invalid URI: {uri_str}")
-        raise ValueError(f"Invalid URI scheme: {uri_str}")
-    parts = uri_str[len(prefix):].split('/')
-    try:
-        with connect(**config) as conn:
-            with conn.cursor() as cursor:
-                if len(parts) == 1 and parts[0] == "tables":
-                    cursor.execute(f"SHOW TABLES")
-                    rows = cursor.fetchall()
-                    result = [row[0] for row in rows]
-                    return "\n".join(result)
-                elif len(parts) == 1 and parts[0] == "models":
-                    cursor.execute(f"/*polar4ai*/SHOW MODELS;")
-                    rows = cursor.fetchall()
-                    result = [row[0] for row in rows]
-                    return "\n".join(result)
-                elif len(parts) == 2 and parts[1] == "data" or parts[1] == 'field':
-                    table = parts[0]
-                    resource_type = parts[1]
-                    if resource_type == "data":
-                        cursor.execute(f"SELECT * FROM {table} LIMIT 50")
-                        columns = [desc[0] for desc in cursor.description]
+
+    # Handle polardb-mysql:// URIs for PolarDB API resources
+    if uri_str.startswith("polardb-mysql://"):
+        prefix = "polardb-mysql://"
+        parts = uri_str[len(prefix):].split('/')
+
+        if len(parts) == 1 and parts[0] == "tables":
+            config = get_db_config()
+            try:
+                with connect(**config) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute(f"SHOW TABLES")
                         rows = cursor.fetchall()
-                        result = [",".join(map(str, row)) for row in rows]
-                        return "\n".join([",".join(columns)] + result)
-                    elif resource_type == "field":
-                        cursor.execute(f"SELECT COLUMN_NAME,COLUMN_TYPE,COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{config['database']}' AND TABLE_NAME = '{table}'")
-                        rows = cursor.fetchall()
-                        result = [",".join(map(str, row)) for row in rows]
+                        result = [row[0] for row in rows]
                         return "\n".join(result)
-                else:
-                    logger.error(f"Invalid URI: {uri_str}")
-                    raise ValueError(f"Invalid URI: {uri_str}")
-                
-    except Error as e:
-        logger.error(f"Database error reading resource {uri}: {str(e)}")
-        raise RuntimeError(f"Database error: {str(e)}")
+            except Error as e:
+                logger.error(f"Database error reading tables: {str(e)}")
+                raise RuntimeError(f"Database error: {str(e)}")
+
+        elif len(parts) == 1 and parts[0] == "models":
+            config = get_db_config()
+            try:
+                with connect(**config) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute(f"/*polar4ai*/SHOW MODELS;")
+                        rows = cursor.fetchall()
+                        result = [row[0] for row in rows]
+                        return "\n".join(result)
+            except Error as e:
+                logger.error(f"Database error reading models: {str(e)}")
+                raise RuntimeError(f"Database error: {str(e)}")
+
+        elif len(parts) == 2 and (parts[1] == "data" or parts[1] == 'field'):
+            config = get_db_config()
+            table = parts[0]
+            resource_type = parts[1]
+            try:
+                with connect(**config) as conn:
+                    with conn.cursor() as cursor:
+                        if resource_type == "data":
+                            cursor.execute(f"SELECT * FROM {table} LIMIT 50")
+                            columns = [desc[0] for desc in cursor.description]
+                            rows = cursor.fetchall()
+                            result = [",".join(map(str, row)) for row in rows]
+                            return "\n".join([",".join(columns)] + result)
+                        elif resource_type == "field":
+                            cursor.execute(f"SELECT COLUMN_NAME,COLUMN_TYPE,COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{config['database']}' AND TABLE_NAME = '{table}'")
+                            rows = cursor.fetchall()
+                            result = [",".join(map(str, row)) for row in rows]
+                            return "\n".join(result)
+            except Error as e:
+                logger.error(f"Database error reading resource: {str(e)}")
+                raise RuntimeError(f"Database error: {str(e)}")
+
+        else:
+            logger.error(f"Invalid URI: {uri_str}")
+            raise ValueError(f"Invalid URI: {uri_str}")
+
+    else:
+        logger.error(f"Invalid URI scheme: {uri_str}")
+        raise ValueError(f"Invalid URI scheme: {uri_str}")
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
@@ -497,6 +519,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return polar4ai_search_doc(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
+
 def create_starlette_app(app: Server, *, debug: bool = False) -> Starlette:
     """Create a Starlette application that can server the provied mcp server with SSE."""
     sse = SseServerTransport("/messages/")
