@@ -280,6 +280,10 @@ async def list_tools() -> list[Tool]:
                     "dir": {
                         "type": "string",
                         "description": "本地目录"
+                    },
+                    "table_name": {
+                        "type": "string",
+                        "description": "知识库的名称,为表的名称(默认使用default_knowledge_base)"
                     }
                 },
                 "required": ["dir"]
@@ -287,7 +291,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="polar4ai_search_doc",
-            description="从PolarDB中搜索相关的知识",
+            description="从PolarDB的知识库中搜索相关的知识",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -295,8 +299,12 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "要搜索的内容"
                     },
+                    "table_name": {
+                        "type": "string",
+                        "description": "要查询知识库的名称,为表的名称(默认使用default_knowledge_base)"
+                    },
                     "count": {
-                        "type": "number",
+                        "type": "integer",
                         "description": "返回的知识的条目,默认为5条"
                     }
                 },
@@ -482,19 +490,27 @@ def polar4ai_import_doc(arguments: str):
     if not dir_path:
         logger.error("dir is required")
         raise ValueError("dir is required for tool import_doc")
+    table_name = arguments.get("table_name")
+    if not table_name:
+        table_name =''
     config = get_db_config()
     doc_import = DocImport(config)
-    result_text = doc_import.import_doc(dir_path)
+    logger.info(f"will import files in {dir_path} to table {table_name}")
+    result_text = doc_import.import_doc(dir_path,table_name)
     return [TextContent(type="text", text=f"{result_text}")]
 def polar4ai_search_doc(arguments: str):
     text = arguments.get("text")
     if not text:
         logger.error("text is required")
         raise ValueError("text is required for tool search_doc")
+    table_name = arguments.get("table_name")
+    if not table_name:
+        table_name=''
     count = arguments.get("count") or 5
     config = get_db_config()
     doc_import = DocImport(config)
-    result = doc_import.query_knowledge(text,count)
+    logger.info(f"will query_knowledge,text={text},count={count},table_name={table_name}")
+    result = doc_import.query_knowledge(text, count, table_name)
     return [TextContent(type="text", text=f"{result}")]
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -518,6 +534,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     elif name == "polar4ai_search_doc":
         return polar4ai_search_doc(arguments)
     else:
+        logger.error(f"Unknown tool: {name}")
         raise ValueError(f"Unknown tool: {name}")
 
 def create_starlette_app(app: Server, *, debug: bool = False) -> Starlette:

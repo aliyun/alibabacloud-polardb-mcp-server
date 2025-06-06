@@ -23,6 +23,8 @@ PolarDB MySQL MCP Server serves as a universal interface between AI Agents and P
 * polar4ai_text_2_sql:利用polardb的AI节点,将用户的文本转换成sql语句
 * polar4ai_text_2_chart:利用polardb的AI节点,将用户的文本统计需求直接转换成图表
 * polar4ai_create_models:使用polar4ai语法，创建各种自定义算法模型  
+* polar4ai_import_doc:利用polardb的AI节点,将用户本地目录的文档导入到PolarDB中形成知识库
+* polar4ai_search_doc:利用polardb的AI节点,从PolarDB中的知识库中搜索用户问题并返回答案  
 ## Resources
 * polardb-mysql://tables: 列出当前数据库中所有的表  
 * polardb-mysql://models: 列出当前数据库中创建的所有自定义算法模型   

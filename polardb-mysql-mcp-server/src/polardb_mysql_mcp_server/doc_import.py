@@ -73,8 +73,12 @@ class DocImport:
         text = text.replace("*/","./")
         return text
                   
-    def import_doc(self, dir)->str:
-        table_name = DEFAULT_TABLE_NAME
+    def import_doc(self, dir, table='') -> str:
+        if table == '':
+            table_name = DEFAULT_TABLE_NAME
+        else:
+            table_name = table
+        logger.info(f"table_name:{table_name}")
         create_table_sql = f"""
             create table if not exists {table_name}(
             id int unsigned auto_increment,
@@ -110,10 +114,13 @@ class DocImport:
         logger.info(f"success import {entry_count} entries with {file_count} files to table({table_name})")
         return f"success import {entry_count} entries with {file_count} files"
     
-    def query_knowledge(self, text: str,count =5):
+    def query_knowledge(self, text: str,count=5,table=''):
         text = self.text_deal(text)
         vec = self.text_to_vect(text)
-        table_name = DEFAULT_TABLE_NAME
+        if table=='':
+            table_name = DEFAULT_TABLE_NAME
+        else:
+            table_name = table
         query_sql = f"""
            /*force_imci*/ select file_name,chunk_content, distance(string_to_vector(\"{vec}\"), vecs, \"COSINE\") as d from {table_name} order by d limit {count};
             """

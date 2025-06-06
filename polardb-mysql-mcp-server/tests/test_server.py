@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import asyncio
 import time
 import logging
+import ast
 logger = logging.getLogger("test-polardb-mysql-mcp-server")
 from polardb_mysql_mcp_server.server import ( 
     get_sql_operation_type,
@@ -14,7 +15,9 @@ from polardb_mysql_mcp_server.server import (
     exec_sql,
     polar4ai_update_index_for_text_2_sql,
     polar4ai_text_2_sql,
-    polar4ai_text_2_chart
+    polar4ai_text_2_chart,
+    polar4ai_import_doc,
+    polar4ai_search_doc
 )
 
 # Fixtures for environment variables
@@ -163,3 +166,42 @@ def test_polar4ai_text_2_chart():
     #clear data
     clear_data(config, index_table_name, table_students)
     logging.info("end run test_polar4ai_text_2_sql")
+
+ 
+def test_polar4ai_search_doc():
+    default_table="default_knowledge_base"
+    table_name = "test_default_knowledge_base"
+    arguments_import1 = {
+        "dir": './tests/test_doc',
+        "table_name":table_name
+    }
+    arguments_import2 = {
+        "dir": './tests/test_doc'
+    }
+    polar4ai_import_doc(arguments_import1)
+    polar4ai_import_doc(arguments_import2)
+    polar4ai_import_doc(arguments_import2)
+    arguments_search1 = {
+        "text": '负载均衡策略',
+        "table_name":table_name,
+    }
+    arguments_search2 = {
+       "text": '负载均衡策略',
+       "count":6
+    }
+    result = polar4ai_search_doc(arguments_search1)
+    result_text = result[0].text
+    data_list = ast.literal_eval(result_text)
+    assert len(data_list) ==5
+    result= polar4ai_search_doc(arguments_search2)
+    result_text = result[0].text
+    data_list = ast.literal_eval(result_text)
+    assert len(data_list) == 6
+    # clear data
+    sql1 = f"drop table {default_table}"
+    sql2 = f"drop table {table_name}"
+    config = get_db_config()
+    rows, ok = exec_sql(config, sql1)
+    assert ok
+    rows, ok = exec_sql(config, sql2)
+    assert ok
