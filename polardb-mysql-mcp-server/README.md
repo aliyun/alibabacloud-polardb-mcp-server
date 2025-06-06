@@ -98,10 +98,3 @@ PolarDB MySQL MCP Server
   }
 }
 ```
-
-## Client
-1. set RUN_MODE=sse and other env variables in .env file  
-2. cd alibabacloud-polardb-mcp-server/polardb-mysql-mcp-server && uv run server.py  
-3. Set Remote Server  
-![set remote server](./images/11.jpg)
-
