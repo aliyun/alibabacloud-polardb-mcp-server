@@ -14,7 +14,7 @@ PolarDB PostgreSQL MCP Server
 * POLARDB_POSTGRESQL_DBNAME: Database name  
 * POLARDB_POSTGRESQL_ENABLE_UPDATE: Enable update operation(default:false)  
 * POLARDB_POSTGRESQL_ENABLE_WRITE:  Enable write operation(default:false)  
-* POLARDB_POSTGRESQL_ENABLE_INSER:  Enable insert operation(default:false)  
+* POLARDB_POSTGRESQL_ENABLE_INSERT:  Enable insert operation(default:false)  
 * POLARDB_POSTGRESQL_ENABLE_DDL:  Enable ddl operation(default:false)  
 * SSE_BIND_HOST: The host address to bind for SSE mode  
 * SSE_BIND_PORT: The port to bind for SSE mode  
@@ -57,7 +57,7 @@ PolarDB PostgreSQL MCP Server
         "RUN_MODE": "stdio",
         "POLARDB_POSTGRESQL_ENABLE_UPDATE": "false",
         "POLARDB_POSTGRESQL_ENABLE_UPDATE": "false",
-        "POLARDB_POSTGRESQL_ENABLE_INSER": "false",
+        "POLARDB_POSTGRESQL_ENABLE_INSERT": "false",
         "POLARDB_POSTGRESQL_ENABLE_DDL": "false"
       }
     }
@@ -85,7 +85,7 @@ PolarDB PostgreSQL MCP Server
         "RUN_MODE": "stdio",
         "POLARDB_POSTGRESQL_ENABLE_UPDATE": "false",
         "POLARDB_POSTGRESQL_ENABLE_UPDATE": "false",
-        "POLARDB_POSTGRESQL_ENABLE_INSER": "false",
+        "POLARDB_POSTGRESQL_ENABLE_INSERT": "false",
         "POLARDB_POSTGRESQL_ENABLE_DDL": "false"
       }
     }

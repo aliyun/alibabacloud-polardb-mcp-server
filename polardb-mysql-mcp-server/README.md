@@ -14,7 +14,7 @@ PolarDB MySQL MCP Server
 * POLARDB_MYSQL_DATABASE: Database name  
 * POLARDB_MYSQL_ENABLE_UPDATE: Enable update operation(default:false)  
 * POLARDB_MYSQL_ENABLE_WRITE:  Enable write operation(default:false)  
-* POLARDB_MYSQL_ENABLE_INSER:  Enable insert operation(default:false)  
+* POLARDB_MYSQL_ENABLE_INSERT:  Enable insert operation(default:false)  
 * POLARDB_MYSQL_ENABLE_DDL:  Enable ddl operation(default:false)  
 * SSE_BIND_HOST: The host address to bind for SSE mode  
 * SSE_BIND_PORT: The port to bind for SSE mode  
@@ -64,7 +64,7 @@ PolarDB MySQL MCP Server
         "RUN_MODE": "stdio",
         "POLARDB_MYSQL_ENABLE_UPDATE": "false",
         "POLARDB_MYSQL_ENABLE_UPDATE": "false",
-        "POLARDB_MYSQL_ENABLE_INSER": "false",
+        "POLARDB_MYSQL_ENABLE_INSERT": "false",
         "POLARDB_MYSQL_ENABLE_DDL": "false"
       }
     }
@@ -91,7 +91,7 @@ PolarDB MySQL MCP Server
         "RUN_MODE": "stdio",
         "POLARDB_MYSQL_ENABLE_UPDATE": "false",
         "POLARDB_MYSQL_ENABLE_UPDATE": "false",
-        "POLARDB_MYSQL_ENABLE_INSER": "false",
+        "POLARDB_MYSQL_ENABLE_INSERT": "false",
         "POLARDB_MYSQL_ENABLE_DDL": "false"
       }
     }
