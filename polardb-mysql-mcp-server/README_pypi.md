@@ -2,14 +2,13 @@ PolarDB MySQL MCP Server
 =======================
 PolarDB MySQL MCP Server serves as a universal interface between AI Agents and PolarDB MySQL databases. It enables seamless communication between AI Agents and PolarDB MySQL, helping AI Agents retrieve PolarDB MySQL database metadata and execute SQL operations.
 # Environment Variables  
-  The following environment variables are required to connect to PolarDB MySQL database,environment Variables can be set in .env file  or set in command line  
 * POLARDB_MYSQL_HOST: Database host address  
 * POLARDB_MYSQL_PORT: Database port 
 * POLARDB_MYSQL_USER: Database user  
 * POLARDB_MYSQL_PASSWORD: Database password  
 * POLARDB_MYSQL_DATABASE: Database name  
 * POLARDB_MYSQL_ENABLE_UPDATE: Enable update operation(default:false)  
-* POLARDB_MYSQL_ENABLE_WRITE:  Enable write operation(default:false)  
+* POLARDB_MYSQL_ENABLE_DELETE:  Enable delete operation(default:false)  
 * POLARDB_MYSQL_ENABLE_INSERT:  Enable insert operation(default:false)  
 * POLARDB_MYSQL_ENABLE_DDL:  Enable ddl operation(default:false)  
 * SSE_BIND_HOST: The host address to bind for SSE mode  
@@ -51,7 +50,7 @@ PolarDB MySQL MCP Server serves as a universal interface between AI Agents and P
         "POLARDB_MYSQL_DATABASE": "xxx",
         "RUN_MODE": "stdio",
         "POLARDB_MYSQL_ENABLE_UPDATE": "false",
-        "POLARDB_MYSQL_ENABLE_UPDATE": "false",
+        "POLARDB_MYSQL_ENABLE_DELETE": "false",
         "POLARDB_MYSQL_ENABLE_INSERT": "false",
         "POLARDB_MYSQL_ENABLE_DDL": "false"
       }

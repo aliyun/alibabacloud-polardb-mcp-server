@@ -18,7 +18,7 @@ polardb-postgresql-mcp-server/*.py[oc]
 polardb-postgresql-mcp-server/build/
 polardb-postgresql-mcp-server/dist/
 polardb-postgresql-mcp-server/wheels/
-polardb-postgresql-mcp-server/*.egg-info
+polardb-postgresql-mcp-server/**/*.egg-info/
 
 # Virtual environments
 polardb-postgresql-mcp-server/.venv

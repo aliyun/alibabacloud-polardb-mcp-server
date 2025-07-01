@@ -15,7 +15,7 @@ from polardb_mysql_mcp_server.doc_import import DocImport
 import asyncio
 import sqlparse
 import numbers
-enable_write = False
+enable_delete = False
 enable_update = False
 enable_insert = False
 enable_ddl = False
@@ -454,15 +454,15 @@ def execute_sql(arguments: str) -> str:
         raise ValueError("query is required for tool execute_sql")
     operation_type = get_sql_operation_type(query)
     logger.info(f"SQL operation type: {operation_type}")
-    global enable_write,enable_update,enable_insert,enable_ddl
+    global enable_delete,enable_update,enable_insert,enable_ddl
     if operation_type == 'INSERT' and not enable_insert:
         logger.info(f"INSERT operation is not enabled,please check POLARDB_MYSQL_ENABLE_INSERT")
         return [TextContent(type="text", text=f"INSERT operation is not enabled in current tool")]
     elif operation_type == 'UPDATE' and not enable_update:
         logger.info(f"UPDATE operation is not enabled,please check POLARDB_MYSQL_ENABLE_UPDATE")
         return [TextContent(type="text", text=f"UPDATE operation is not enabled in current tool")]
-    elif operation_type == 'DELETE' and not enable_write:
-        logger.info(f"DELETE operation is not enabled,please check POLARDB_MYSQL_ENABLE_WRITE")
+    elif operation_type == 'DELETE' and not enable_delete:
+        logger.info(f"DELETE operation is not enabled,please check POLARDB_MYSQL_ENABLE_DELETE")
         return [TextContent(type="text", text=f"DELETE operation is not enabled in current tool")]
     elif operation_type == 'DDL' and not enable_ddl:
         logger.info(f"DDL operation is not enabled,please check POLARDB_MYSQL_ENABLE_DDL")
@@ -594,12 +594,12 @@ def get_bool_env(var_name: str, default: bool = False) -> bool:
     return value.lower() in ['true', '1', 't', 'y', 'yes']
 def main():
     load_dotenv()
-    global enable_write,enable_update,enable_insert,enable_ddl
-    enable_write = get_bool_env("POLARDB_MYSQL_ENABLE_WRITE")
+    global enable_delete,enable_update,enable_insert,enable_ddl
+    enable_delete = get_bool_env("POLARDB_MYSQL_ENABLE_DELETE")
     enable_update = get_bool_env("POLARDB_MYSQL_ENABLE_UPDATE")
     enable_insert = get_bool_env("POLARDB_MYSQL_ENABLE_INSERT")
     enable_ddl = get_bool_env("POLARDB_MYSQL_ENABLE_DDL")
-    logger.info(f"enable_write: {enable_write}, enable_update: {enable_update}, enable_insert: {enable_insert}, enable_ddl: {enable_ddl}")
+    logger.info(f"enable_delete: {enable_delete}, enable_update: {enable_update}, enable_insert: {enable_insert}, enable_ddl: {enable_ddl}")
     if os.getenv("RUN_MODE")=="stdio":
         asyncio.run(stdio_main())
     else:

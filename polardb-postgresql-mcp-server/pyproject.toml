@@ -1,11 +1,33 @@
 [project]
 name = "polardb-postgresql-mcp-server"
-version = "0.0.1"
+version = "1.0.0"
 description = "Add your description here"
-readme = "README.md"
+readme = "README_pypi.md"
 requires-python = ">=3.12"
 dependencies = [
     "mcp[cli]>=1.6.0",
     "psycopg>=3.1.0",
     "sqlparse>=0.4.4"
 ]
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.3.5"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages]
+find = { where = ["src"] }
+
+[project.scripts]
+run_polardb_postgresql_mcp_server= "polardb_postgresql_mcp_server:main"
+
+
+[tool.pytest.ini_options]
+pythonpath = "src"
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s - %(levelname)s - %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
