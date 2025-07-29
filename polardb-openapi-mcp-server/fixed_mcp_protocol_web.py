@@ -32,7 +32,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "自然语言查询，例如: '重启节点pi-1udu07821xcd49u02', '获取集群pc-123的性能', 'restart node pi-123', 'get performance for cluster pc-456' 等。支持中英文混合输入。"
+                    "description": "自然语言查询，例如: '重启节点pi-xxxxxxx', '获取集群pc-xxxxxxx的性能', 'restart node pi-xxxxxxx', 'get performance for cluster pc-xxxxxxx' 等。支持中英文混合输入。"
                 }
             },
             "required": ["query"]
@@ -46,7 +46,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbnode_id": {
                     "type": "string",
-                    "description": "要重启的数据库节点ID，必须以pi-开头，例如: pi-1udu07821xcd49u02"
+                    "description": "要重启的数据库节点ID，必须以pi-开头，例如: pi-xxxxxxx"
                 }
             },
             "required": ["dbnode_id"]
@@ -60,7 +60,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbnode_id": {
                     "type": "string",
-                    "description": "Database node ID to restart, must start with 'pi-', e.g., pi-1udu07821xcd49u02"
+                    "description": "Database node ID to restart, must start with 'pi-', e.g., pi-xxxxxxx"
                 }
             },
             "required": ["dbnode_id"]
@@ -293,7 +293,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbnode_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB database node (e.g., pi-1udn03901ed4u2i1e)"
+                    "description": "The ID of the PolarDB database node (e.g., pi-xxxxxxx)"
                 },
                 "key": {
                     "type": "string",
@@ -323,7 +323,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "db_cluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-1udn03901ed4u2i1e)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "key": {
                     "type": "string",
@@ -396,7 +396,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "net_type": {
                     "type": "string",
@@ -405,7 +405,7 @@ HARDCODED_TOOLS = [
                 },
                 "dbendpoint_id": {
                     "type": "string",
-                    "description": "The ID of the database endpoint (e.g., pe-6nn5trlkr263c0uce)"
+                    "description": "The ID of the database endpoint (e.g., pe-xxxxxxx)"
                 },
                 "connection_string_prefix": {
                     "type": "string",
@@ -427,7 +427,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "security_ips": {
                     "type": "string",
@@ -459,7 +459,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "account_name": {
                     "type": "string",
@@ -501,7 +501,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 }
             },
             "required": ["dbcluster_id"]
@@ -515,7 +515,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "account_name": {
                     "type": "string",
@@ -533,7 +533,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "db_cluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "db_name": {
                     "type": "string",
@@ -559,7 +559,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 }
             },
             "required": ["dbcluster_id"]
@@ -573,7 +573,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "db_cluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 }
             },
             "required": ["db_cluster_id"]
@@ -587,7 +587,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "db_cluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 }
             },
             "required": ["db_cluster_id"]
@@ -605,7 +605,7 @@ HARDCODED_TOOLS = [
                 },
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-1udt379icjl5032b1)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 }
             },
             "required": ["region_id", "dbcluster_id"]
@@ -637,7 +637,7 @@ HARDCODED_TOOLS = [
                 },
                 "vpc_id": {
                     "type": "string",
-                    "description": "Optional: VPC ID to filter VSwitches (e.g., vpc-bp1awijx0p7r8tnhk49iy). If provided, only VSwitches in this VPC will be returned"
+                    "description": "Optional: VPC ID to filter VSwitches (e.g., vpc-xxxxxxx). If provided, only VSwitches in this VPC will be returned"
                 },
                 "zone_id": {
                     "type": "string",
@@ -659,7 +659,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "white_list_type": {
                     "type": "string",
@@ -697,7 +697,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "dbcluster_description": {
                     "type": "string",
@@ -717,12 +717,12 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbnode_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB database node to restart. CRITICAL: Must start with 'pi-' (e.g., 'pi-6nnp9h5z59l323jpf'). Do NOT use cluster IDs that start with 'pc-'. Use polardb_extract_node_ids or polardb_describe_db_cluster to find correct node IDs if unsure.",
+                    "description": "The ID of the PolarDB database node to restart. CRITICAL: Must start with 'pi-' (e.g., 'pi-xxxxxxx'). Do NOT use cluster IDs that start with 'pc-'. Use polardb_extract_node_ids or polardb_describe_db_cluster to find correct node IDs if unsure.",
                     "pattern": "^pi-[a-zA-Z0-9]+$"
                 },
                 "db_cluster_id": {
                     "type": "string",
-                    "description": "Optional: The ID of the PolarDB cluster that contains the node (e.g., 'pc-6nnupu6o754068f16'). Recommended for additional validation and context. Helps ensure the node belongs to the intended cluster."
+                    "description": "Optional: The ID of the PolarDB cluster that contains the node (e.g., 'pc-xxxxxxx'). Recommended for additional validation and context. Helps ensure the node belongs to the intended cluster."
                 }
             },
             "required": ["dbnode_id"]
@@ -754,7 +754,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "要测试连接的PolarDB集群ID，必须以'pc-'开头（例如：'pc-1udt379icjl5032b1'）。请勿使用以'pi-'开头的节点ID。如不确定，可使用polardb_describe_db_clusters查找正确的集群ID。",
+                    "description": "要测试连接的PolarDB集群ID，必须以'pc-'开头（例如：'pc-xxxxxxx'）。请勿使用以'pi-'开头的节点ID。如不确定，可使用polardb_describe_db_clusters查找正确的集群ID。",
                     "pattern": "^pc-[a-zA-Z0-9]+$"
                 },
                 "source_ip_address": {
@@ -774,11 +774,11 @@ HARDCODED_TOOLS = [
             "properties": {
                 "dbcluster_id": {
                     "type": "string",
-                    "description": "PolarDB集群ID (例如: pc-1udt379icjl5032b1)"
+                    "description": "PolarDB集群ID (例如: pc-xxxxxxx)"
                 },
                 "dbnode_id": {
                     "type": "string",
-                    "description": "PolarDB数据库节点ID (例如: pi-1udt379icjl5032b1)"
+                    "description": "PolarDB数据库节点ID (例如: pi-xxxxxxx)"
                 },
                 "key": {
                     "type": "string", 
@@ -804,7 +804,7 @@ HARDCODED_TOOLS = [
             "properties": {
                 "instance_id": {
                     "type": "string",
-                    "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                    "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                 },
                 "start_time": {
                     "type": ["integer", "string"],
@@ -816,7 +816,7 @@ HARDCODED_TOOLS = [
                 },
                 "node_id": {
                     "type": "string",
-                    "description": "The ID of the database node (required, e.g., pi-6nn73sf067du4tto7)"
+                    "description": "The ID of the database node (required, e.g., pi-xxxxxxx)"
                 },
                 "page_size": {
                     "type": "integer",
@@ -1978,7 +1978,7 @@ def analyze_connectivity_result(connectivity_result):
                 "details": "提供的集群ID格式无效，必须以'pc-'开头。",
                 "recommendations": [
                     "使用 polardb_describe_db_clusters 查找正确的集群ID",
-                    "确保使用集群ID（pc-xxx）而不是节点ID（pi-xxx）",
+                    "确保使用集群ID（pc-xxxxxxx）而不是节点ID（pi-xxxxxxx）",
                     "检查集群ID拼写和格式"
                 ]
             }
@@ -2281,7 +2281,7 @@ def format_performance_analysis(analysis):
         "properties": {
             "db_cluster_id": {
                 "type": "string",
-                "description": "PolarDB集群ID (例如: pc-1udt379icjl5032b1)"
+                "description": "PolarDB集群ID (例如: pc-xxxxxxx)"
             },
             "key": {
                 "type": "string", 
@@ -2363,7 +2363,7 @@ def test_analysis():
     """Test the analysis function with sample data"""
     # Sample performance data (simplified version of your actual data)
     sample_data = {
-        "DBNodeId": "pi-dj1w3rx6y52284dww",
+        "DBNodeId": "pi-xxxxxxx",
         "DBType": "MySQL", 
         "DBVersion": "8.0",
         "StartTime": "2025-06-05T16:20:00Z",
@@ -2455,11 +2455,11 @@ When you call polardb_describe_db_clusters, you get a response like this:
 ```
 'DBCluster': [
   {{
-    'DBClusterId': 'pc-6nnxi02yw7ma1fopw',
+    'DBClusterId': 'pc-xxxxxxx',
     'DBNodes': {{
       'DBNode': [
-        {{'DBNodeId': 'pi-6nnp9h5z59l323jpf', 'DBNodeRole': 'Writer'}},
-        {{'DBNodeId': 'pi-other-node-id', 'DBNodeRole': 'Reader'}}
+        {{'DBNodeId': 'pi-xxxxxxx', 'DBNodeRole': 'Writer'}},
+        {{'DBNodeId': 'pi-xxxxxxx', 'DBNodeRole': 'Reader'}}
       ]
     }}
   }}
@@ -2472,15 +2472,15 @@ TO FIND A NODE:
 3. Check each 'DBNodeId' in that array
 4. If you find the target node ID, YOU'VE FOUND IT - use that cluster's 'DBClusterId'
 
-EXAMPLE: Looking for node "pi-6nnp9h5z59l323jpf"
-- Cluster 1: pc-uf6bui46gdx7m8d8z has nodes ['pi-uf6tn00bneck8wbng', 'pi-uf6600x23rdrzp595'] ❌ NOT FOUND
-- Cluster 2: pc-6nnxi02yw7ma1fopw has nodes ['pi-6nnp9h5z59l323jpf'] ✅ FOUND!
-- Result: Use cluster_id = "pc-6nnxi02yw7ma1fopw"
+EXAMPLE: Looking for node "pi-xxxxxxx"
+- Cluster 1: pc-xxxxxxx has nodes ['pi-xxxxxxx', 'pi-xxxxxxx'] ❌ NOT FOUND
+- Cluster 2: pc-xxxxxxx has nodes ['pi-xxxxxxx'] ✅ FOUND!
+- Result: Use cluster_id = "pc-xxxxxxx"
 
 NEVER say "node not found" if you haven't carefully examined EVERY node in EVERY cluster in the response.
 
 COMPREHENSIVE REGION SEARCH STRATEGY:
-When searching for a database node (pi-xxxxx), use this systematic approach:
+When searching for a database node (pi-xxxxxxx), use this systematic approach:
 
 1. FIRST: Get all available regions using polardb_describe_regions  
 2. THEN: Search through regions systematically
@@ -2488,15 +2488,15 @@ When searching for a database node (pi-xxxxx), use this systematic approach:
 4. CAREFULLY PARSE: Look through ALL clusters and ALL nodes in each cluster
 5. WHEN FOUND: Note the cluster ID and STOP searching
 
-CORRECT SEARCH FLOW for "Get performance for node pi-6nnp9h5z59l323jpf":
+CORRECT SEARCH FLOW for "Get performance for node pi-xxxxxxx":
 1. Call polardb_describe_regions to get ALL available regions
 2. Call polardb_describe_db_clusters with region_id: "cn-hangzhou"
-3. Parse response: Check every cluster's DBNodes array for "pi-6nnp9h5z59l323jpf"
+3. Parse response: Check every cluster's DBNodes array for "pi-xxxxxxx"
 4. If not found, try next region: polardb_describe_db_clusters with region_id: "cn-beijing"  
-5. Parse response: Check every cluster's DBNodes array for "pi-6nnp9h5z59l323jpf"
+5. Parse response: Check every cluster's DBNodes array for "pi-xxxxxxx"
 6. If not found, try next region: polardb_describe_db_clusters with region_id: "cn-shanghai"
-7. Parse response: Find "pi-6nnp9h5z59l323jpf" in cluster "pc-6nnxi02yw7ma1fopw" ✅ FOUND!
-8. Use cluster_id: "pc-6nnxi02yw7ma1fopw" for performance call
+7. Parse response: Find "pi-xxxxxxx" in cluster "pc-xxxxxxx" ✅ FOUND!
+8. Use cluster_id: "pc-xxxxxxx" for performance call
 
 CRITICAL DATABASE ID RELATIONSHIPS:
 - NEVER assume cluster IDs based on node IDs - they are NOT related by simple prefix replacement
@@ -2558,8 +2558,8 @@ For complete security analysis:
         {{
             "tool_name": "polardb_describe_db_proxy_performance",
             "arguments": {{
-                "dbcluster_id": "pc-6nnupu6o754068f16",
-                "dbnode_id": "pi-6nno0x8y190703h5c", 
+                "dbcluster_id": "pc-xxxxxxx",
+                "dbnode_id": "pi-xxxxxxx", 
                 "key": "PolarProxy_CurrentConns, PolarProxy_DBConns, PolarProxy_CPU",
                 "start_time": "2025-07-16T17:01Z",
                 "end_time": "2025-07-16T17:05Z"
@@ -2840,7 +2840,7 @@ def main():
         print("❌ Error: MCP server path is required")
         print("\n🔧 Usage:")
         print(f"   python3 {sys.argv[0]} <path_to_polardb_server>")
-        print(f"   Example: python3 {sys.argv[0]} /Users/panfeng/git/polardb_mcp_server/polardb-openapi-mcp-server")
+        print(f"   Example: python3 {sys.argv[0]} /path/to/polardb-openapi-mcp-server")
         return 1
     
     server_path = sys.argv[1]
@@ -2859,7 +2859,7 @@ def main():
         print(f"❌ Failed to setup MCP server: {e}")
         print("\n🔧 Usage:")
         print(f"   python3 {sys.argv[0]} [path_to_polardb_server]")
-        print(f"   Example: python3 {sys.argv[0]} /Users/panfeng/git/polardb_mcp_server/polardb-openapi-mcp-server")
+        print(f"   Example: python3 {sys.argv[0]} /path/to/polardb-openapi-mcp-server")
         return 1
     
     print("✅ Using proper MCP protocol sequence:")

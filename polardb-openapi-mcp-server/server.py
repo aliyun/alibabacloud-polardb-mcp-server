@@ -239,21 +239,21 @@ def polardb_smart_query(arguments: dict) -> list[TextContent]:
 🤖 **支持的智能查询格式**:
 
 **节点操作**:
-• "重启节点 pi-xxxxx" - 重启指定节点
-• "获取节点 pi-xxxxx 的性能" - 获取节点性能数据
+• "重启节点 pi-xxxxxxx" - 重启指定节点
+• "获取节点 pi-xxxxxxx 的性能" - 获取节点性能数据
 
 **集群操作**:
-• "获取集群 pc-xxxxx 的性能" - 获取集群性能数据  
-• "查看集群 pc-xxxxx 信息" - 查看集群详细信息
-• "查看集群 pc-xxxxx 的白名单" - 查看访问白名单
-• "提取集群 pc-xxxxx 的节点" - 提取集群中的节点ID
+• "获取集群 pc-xxxxxxx 的性能" - 获取集群性能数据  
+• "查看集群 pc-xxxxxxx 信息" - 查看集群详细信息
+• "查看集群 pc-xxxxxxx 的白名单" - 查看访问白名单
+• "提取集群 pc-xxxxxxx 的节点" - 提取集群中的节点ID
 
 **English formats**:
-• "restart node pi-xxxxx"
-• "get performance for cluster pc-xxxxx"
-• "describe cluster pc-xxxxx"
+• "restart node pi-xxxxxxx"
+• "get performance for cluster pc-xxxxxxx"
+• "describe cluster pc-xxxxxxx"
 
-💡 **提示**: 请提供具体的节点ID (pi-xxxxx) 或集群ID (pc-xxxxx)
+💡 **提示**: 请提供具体的节点ID (pi-xxxxxxx) 或集群ID (pc-xxxxxxx)
 """)]
     
     # Execute the identified tool
@@ -750,9 +750,9 @@ When parsing cluster information:
 1. Look at EACH cluster in the 'DBCluster' array
 2. For each cluster, examine 'DBNodes' -> 'DBNode' array  
 3. Check each 'DBNodeId' in that array
-4. Node IDs (pi-xxx) are NOT related to cluster IDs (pc-xxx) by simple prefix replacement
+4. Node IDs (pi-xxxxxxx) are NOT related to cluster IDs (pc-xxxxxxx) by simple prefix replacement
 
-EXAMPLE: Node 'pi-6nnp9h5z59l323jpf' belongs to cluster 'pc-6nnxi02yw7ma1fopw' (completely different!)
+EXAMPLE: Node 'pi-xxxxxxx' belongs to cluster 'pc-xxxxxxx' (completely different!)
 """,
             "region_search": """
 COMPREHENSIVE REGION SEARCH STRATEGY:
@@ -800,7 +800,7 @@ When users ask to find nodes or get node information:
 
 5. ERROR PREVENTION:
    - Always verify cluster-to-node relationships using extract_node_ids tool
-   - Don't use pattern matching (pi-xxx from pc-xxx) - this is unreliable
+   - Don't use pattern matching (pi-xxxxxxx from pc-xxxxxxx) - this is unreliable
    - Provide specific node IDs in user responses, not generic examples
 
 EXAMPLE WORKFLOW:
@@ -913,7 +913,7 @@ ERROR HANDLING PROCEDURES:
             guidance_parts.extend([
                 self.load_prompt_section("cluster_parsing"),
                 self.load_prompt_section("region_search"),
-                "REMEMBER: Node IDs (pi-xxx) do NOT correspond to cluster IDs (pc-xxx)"
+                "REMEMBER: Node IDs (pi-xxxxxxx) do NOT correspond to cluster IDs (pc-xxxxxxx)"
             ])
         elif context_type == "node_search":
             guidance_parts.extend([
@@ -2846,9 +2846,9 @@ def polardb_restart_db_node(arguments: dict) -> list[TextContent]:
         return [TextContent(type="text", text=(
             f"❌ INVALID_NODE_ID_FORMAT: DB Node ID must start with 'pi-'\n"
             f"Provided: '{dbnode_id}'\n"
-            f"Expected format: 'pi-xxxxxxxxxxxxxxxxx'\n\n"
+            f"Expected format: 'pi-xxxxxxx'\n\n"
             f"COMMON_MISTAKES:\n"
-            f"• Using cluster ID (pc-xxxxx) instead of node ID (pi-xxxxx)\n"
+            f"• Using cluster ID (pc-xxxxxxx) instead of node ID (pi-xxxxxxx)\n"
             f"• Missing 'pi-' prefix\n"
             f"• Using incorrect resource type identifier\n\n"
             f"HOW_TO_FIND_CORRECT_NODE_ID:\n"
@@ -2856,9 +2856,9 @@ def polardb_restart_db_node(arguments: dict) -> list[TextContent]:
             f"2. Use polardb_extract_node_ids to get node IDs from a cluster\n"
             f"3. Use polardb_describe_db_cluster to see all nodes in a specific cluster\n\n"
             f"EXAMPLE_VALID_NODE_IDS:\n"
-            f"• pi-6nnp9h5z59l323jpf\n"
-            f"• pi-1udn03901ed4u2i1e\n"
-            f"• pi-abc123def456ghi789"
+            f"• pi-xxxxxxx\n"
+            f"• pi-xxxxxxx\n"
+            f"• pi-xxxxxxx"
         ))]
 
     # Additional validation for node ID format
@@ -2867,7 +2867,7 @@ def polardb_restart_db_node(arguments: dict) -> list[TextContent]:
             f"❌ INVALID_NODE_ID_LENGTH: DB Node ID appears too short\n"
             f"Provided: '{dbnode_id}' ({len(dbnode_id)} characters)\n"
             f"Expected: 'pi-' followed by alphanumeric identifier (typically 17+ characters total)\n"
-            f"Example: 'pi-6nnp9h5z59l323jpf'"
+            f"Example: 'pi-xxxxxxx'"
         ))]
 
     client = create_client()
@@ -3100,10 +3100,10 @@ def polardb_restart_db_node(arguments: dict) -> list[TextContent]:
             "HOW_TO_FIND_CORRECT_NODE_ID:",
             "1. Use polardb_describe_db_clusters to find your cluster",
             "2. Use polardb_extract_node_ids with your cluster ID",
-            "3. Use the correct pi-xxxxx node ID from the results",
+            "3. Use the correct pi-xxxxxxx node ID from the results",
             "",
             f"COMMON_MISTAKES:",
-            f"• Using cluster ID (pc-xxxxx) instead of node ID (pi-xxxxx)",
+            f"• Using cluster ID (pc-xxxxxxx) instead of node ID (pi-xxxxxxx)";
             f"• Typos in the node ID",
             f"• Using deleted or non-existent node IDs",
         ]
@@ -3124,12 +3124,12 @@ async def list_tools() -> list[Tool]:
             description="""🤖 智能查询工具 - 支持自然语言查询PolarDB资源。可以理解中文和英文的自然语言指令，自动识别用户意图并执行相应操作。
 
 支持的查询类型:
-- 重启节点: "重启节点 pi-xxxxx" 或 "restart node pi-xxxxx"
-- 集群性能: "获取集群 pc-xxxxx 的性能" 或 "get performance for cluster pc-xxxxx"  
-- 节点性能: "获取节点 pi-xxxxx 的性能" 或 "get performance for node pi-xxxxx"
-- 集群信息: "查看集群 pc-xxxxx 信息" 或 "describe cluster pc-xxxxx"
-- 白名单查看: "查看集群 pc-xxxxx 的白名单" 或 "show whitelist for cluster pc-xxxxx"
-- 节点提取: "提取集群 pc-xxxxx 的节点" 或 "extract nodes from cluster pc-xxxxx"
+- 重启节点: "重启节点 pi-xxxxxxx" 或 "restart node pi-xxxxxxx"
+- 集群性能: "获取集群 pc-xxxxxxx 的性能" 或 "get performance for cluster pc-xxxxxxx"  
+- 节点性能: "获取节点 pi-xxxxxxx 的性能" 或 "get performance for node pi-xxxxxxx"
+- 集群信息: "查看集群 pc-xxxxxxx 信息" 或 "describe cluster pc-xxxxxxx"
+- 白名单查看: "查看集群 pc-xxxxxxx 的白名单" 或 "show whitelist for cluster pc-xxxxxxx"
+- 节点提取: "提取集群 pc-xxxxxxx 的节点" 或 "extract nodes from cluster pc-xxxxxxx"
 
 系统会自动识别用户意图，提取相关参数，并调用适当的工具执行操作。无需手动查找集群ID或设置复杂参数。""",
             inputSchema={
@@ -3137,7 +3137,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "自然语言查询，例如: '重启节点pi-1udu07821xcd49u02', '获取集群pc-123的性能', 'restart node pi-123', 'get performance for cluster pc-456' 等。支持中英文混合输入。"
+                        "description": "自然语言查询，例如: '重启节点pi-xxxxxxx', '获取集群pc-xxxxxxx的性能', 'restart node pi-xxxxxxx', 'get performance for cluster pc-xxxxxxx' 等。支持中英文混合输入。"
                     }
                 },
                 "required": ["query"]
@@ -3415,7 +3415,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbnode_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB database node (e.g., pi-1udn03901ed4u2i1e)"
+                        "description": "The ID of the PolarDB database node (e.g., pi-xxxxxxx)"
                     },
                     "key": {
                         "type": "string",
@@ -3492,7 +3492,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     },
                     "net_type": {
                         "type": "string",
@@ -3501,7 +3501,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "dbendpoint_id": {
                         "type": "string",
-                        "description": "The ID of the database endpoint (e.g., pe-6nn5trlkr263c0uce)"
+                        "description": "The ID of the database endpoint (e.g., pe-xxxxxxx)"
                     }
                 },
                 "required": ["dbcluster_id", "net_type", "dbendpoint_id"]
@@ -3515,7 +3515,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     },
                     "account_name": {
                         "type": "string",
@@ -3557,7 +3557,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     }
                 },
                 "required": ["dbcluster_id"]
@@ -3571,7 +3571,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     },
                     "account_name": {
                         "type": "string",
@@ -3589,7 +3589,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "db_cluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     },
                     "db_name": {
                         "type": "string",
@@ -3615,7 +3615,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "db_cluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     }
                 },
                 "required": ["db_cluster_id"]
@@ -3629,7 +3629,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "db_cluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     }
                 },
                 "required": ["db_cluster_id"]
@@ -3655,7 +3655,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "db_cluster_id": {
                         "type": "string",
-                        "description": "PolarDB集群ID (例如: pc-1udt379icjl5032b1)"
+                        "description": "PolarDB集群ID (例如: pc-xxxxxxx)"
                     },
                     "key": {
                         "type": "string", 
@@ -3696,7 +3696,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-1udt379icjl5032b1)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     }
                 },
                 "required": ["region_id", "dbcluster_id"]
@@ -3728,7 +3728,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "vpc_id": {
                         "type": "string",
-                        "description": "Optional: VPC ID to filter VSwitches (e.g., vpc-bp1awijx0p7r8tnhk49iy)"
+                        "description": "Optional: VPC ID to filter VSwitches (e.g., vpc-xxxxxxx)"
                     },
                     "zone_id": {
                         "type": "string",
@@ -3750,7 +3750,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     },
                     "white_list_type": {
                         "type": "string",
@@ -3788,7 +3788,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     },
                     "dbcluster_description": {
                         "type": "string",
@@ -3808,12 +3808,12 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbnode_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB database node to restart. Must start with 'pi-' (e.g., 'pi-6nnp9h5z59l323jpf'). Do NOT use cluster IDs that start with 'pc-'. Use polardb_extract_node_ids or polardb_describe_db_cluster to find correct node IDs.",
+                        "description": "The ID of the PolarDB database node to restart. Must start with 'pi-' (e.g., 'pi-xxxxxxx'). Do NOT use cluster IDs that start with 'pc-'. Use polardb_extract_node_ids or polardb_describe_db_cluster to find correct node IDs.",
                         "pattern": "^pi-[a-zA-Z0-9]+$"
                     },
                     "db_cluster_id": {
                         "type": "string",
-                        "description": "Optional: The ID of the PolarDB cluster that contains the node (e.g., 'pc-6nnupu6o754068f16'). Recommended for additional validation and context."
+                        "description": "Optional: The ID of the PolarDB cluster that contains the node (e.g., 'pc-xxxxxxx'). Recommended for additional validation and context."
                     }
                 },
                 "required": ["dbnode_id"]
@@ -3845,7 +3845,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster to test connectivity to. Must start with 'pc-' (e.g., 'pc-1udt379icjl5032b1'). Do NOT use node IDs that start with 'pi-'. Use polardb_describe_db_clusters to find correct cluster IDs if unsure.",
+                        "description": "The ID of the PolarDB cluster to test connectivity to. Must start with 'pc-' (e.g., 'pc-xxxxxxx'). Do NOT use node IDs that start with 'pi-'. Use polardb_describe_db_clusters to find correct cluster IDs if unsure.",
                         "pattern": "^pc-[a-zA-Z0-9]+$"
                     },
                     "source_ip_address": {
@@ -3877,11 +3877,11 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "dbcluster_id": {
                         "type": "string",
-                        "description": "PolarDB集群ID (例如: pc-1udt379icjl5032b1)"
+                        "description": "PolarDB集群ID (例如: pc-xxxxxxx)"
                     },
                     "dbnode_id": {
                         "type": "string",
-                        "description": "PolarDB数据库节点ID (例如: pi-1udt379icjl5032b1)"
+                        "description": "PolarDB数据库节点ID (例如: pi-xxxxxxx)"
                     },
                     "key": {
                         "type": "string", 
@@ -3907,7 +3907,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "instance_id": {
                         "type": "string",
-                        "description": "The ID of the PolarDB cluster (e.g., pc-6nnupu6o754068f16)"
+                        "description": "The ID of the PolarDB cluster (e.g., pc-xxxxxxx)"
                     },
                     "start_time": {
                         "type": ["integer", "string"],
@@ -3919,7 +3919,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "node_id": {
                         "type": "string",
-                        "description": "The ID of the database node (required, e.g., pi-6nn73sf067du4tto7)"
+                        "description": "The ID of the database node (required, e.g., pi-xxxxxxx)"
                     },
                     "page_size": {
                         "type": "integer",
@@ -6608,9 +6608,9 @@ def polardb_describe_db_cluster_connectivity(arguments: dict) -> list[TextConten
         return [TextContent(type="text", text=(
             f"❌ INVALID_CLUSTER_ID_FORMAT: DB Cluster ID must start with 'pc-'\n"
             f"Provided: '{dbcluster_id}'\n"
-            f"Expected format: 'pc-xxxxxxxxxxxxxxxxx'\n\n"
+            f"Expected format: 'pc-xxxxxxx'\n\n"
             f"COMMON_MISTAKES:\n"
-            f"• Using node ID (pi-xxxxx) instead of cluster ID (pc-xxxxx)\n"
+            f"• Using node ID (pi-xxxxxxx) instead of cluster ID (pc-xxxxxxx)\n"
             f"• Missing 'pc-' prefix\n"
             f"• Using incorrect resource type identifier\n\n"
             f"HOW_TO_FIND_CORRECT_CLUSTER_ID:\n"
@@ -6618,9 +6618,9 @@ def polardb_describe_db_cluster_connectivity(arguments: dict) -> list[TextConten
             f"2. Use polardb_describe_db_cluster to get specific cluster details\n"
             f"3. Check cluster endpoints with polardb_describe_db_cluster_endpoints\n\n"
             f"EXAMPLE_VALID_CLUSTER_IDS:\n"
-            f"• pc-1udt379icjl5032b1\n"
-            f"• pc-dj19438m571u1f41d\n"
-            f"• pc-abc123def456ghi789"
+            f"• pc-xxxxxxx\n"
+            f"• pc-xxxxxxx\n"
+            f"• pc-xxxxxxx"
         ))]
 
     # Additional validation for cluster ID length
@@ -6629,7 +6629,7 @@ def polardb_describe_db_cluster_connectivity(arguments: dict) -> list[TextConten
             f"❌ INVALID_CLUSTER_ID_LENGTH: DB Cluster ID appears too short\n"
             f"Provided: '{dbcluster_id}' ({len(dbcluster_id)} characters)\n"
             f"Expected: 'pc-' followed by alphanumeric identifier (typically 17+ characters total)\n"
-            f"Example: 'pc-1udt379icjl5032b1'"
+            f"Example: 'pc-xxxxxxx'"
         ))]
 
     # Validate IP address format
