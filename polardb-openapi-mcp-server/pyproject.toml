@@ -1,11 +1,31 @@
 [project]
-name = "polardb-mysql-mcp-server"
-version = "0.1.0"
-description = "Add your description here"
+name = "polardb-openapi-mcp-server"
+version = "0.2.3"
+description = "MCP server for Alibaba Cloud PolarDB OpenAPI management with slow log analysis and performance monitoring"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alibabacloud_polardb20170801>=5.6.0",
+    "alibabacloud_vpc20160428>=4.5.0", 
+    "alibabacloud_das20200116>=1.0.0",
+    "python-dotenv",
+    "starlette",
+    "uvicorn",
     "mcp[cli]>=1.6.0",
-    "mysql-connector-python>=9.3.0",
-    "sqlparse>=0.4.4",
+    "mysql-connector-python",
+    "sqlparse",
+    "pytz",
 ]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["server", "fixed_mcp_protocol_web"]
+
+[tool.setuptools.package-data]
+"*" = ["prompts/**/*", "*.html", "*.txt"]
+
+[project.scripts]
+run_polardb_openapi_mcp_server = "server:main"

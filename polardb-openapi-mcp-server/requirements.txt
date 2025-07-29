@@ -1,0 +1,13 @@
+aliyun-python-sdk-core
+aliyun-python-sdk-polardb==1.8.54
+alibabacloud_polardb20170801==5.6.0
+python-dotenv
+starlette
+mcp
+mysql-connector-python
+sqlparse
+alibabacloud_vpc20160428>=4.5.0
+pytz
+flask>=2.0.0
+anthropic
+alibabacloud_das20200116>=1.0.0
