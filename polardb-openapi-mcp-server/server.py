@@ -3103,7 +3103,7 @@ def polardb_restart_db_node(arguments: dict) -> list[TextContent]:
             "3. Use the correct pi-xxxxxxx node ID from the results",
             "",
             f"COMMON_MISTAKES:",
-            f"• Using cluster ID (pc-xxxxxxx) instead of node ID (pi-xxxxxxx)";
+            f"• Using cluster ID (pc-xxxxxxx) instead of node ID (pi-xxxxxxx)",
             f"• Typos in the node ID",
             f"• Using deleted or non-existent node IDs",
         ]

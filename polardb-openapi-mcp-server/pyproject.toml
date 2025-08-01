@@ -1,6 +1,6 @@
 [project]
 name = "polardb-openapi-mcp-server"
-version = "0.2.3"
+version = "0.2.5"
 description = "MCP server for Alibaba Cloud PolarDB OpenAPI management with slow log analysis and performance monitoring"
 readme = "README.md"
 requires-python = ">=3.12"

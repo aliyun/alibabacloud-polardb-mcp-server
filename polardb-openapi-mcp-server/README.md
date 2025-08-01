@@ -1,5 +1,9 @@
 <p align="center">English | <a href="./README_CN.md">中文</a><br></p>
 # Alibaba Cloud PolarDB OpenAPI MCP Server
+
+[![PyPI version](https://badge.fury.io/py/polardb-openapi-mcp-server.svg)](https://badge.fury.io/py/polardb-openapi-mcp-server)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+
 MCP server for PolarDB Services via OPENAPI
 
 ## Prerequisites

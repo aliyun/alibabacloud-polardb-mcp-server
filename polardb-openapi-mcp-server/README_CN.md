@@ -1,6 +1,10 @@
 <p align="center"><a href="./README.md">English</a> | 中文<br></p>
 
 # 阿里云 PolarDB OpenAPI MCP 服务器
+
+[![PyPI version](https://badge.fury.io/py/polardb-openapi-mcp-server.svg)](https://badge.fury.io/py/polardb-openapi-mcp-server)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+
 通过 OpenAPI 提供 PolarDB 服务的 MCP 服务器
 
 ## 前置条件
