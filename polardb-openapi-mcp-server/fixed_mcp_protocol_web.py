@@ -2883,9 +2883,10 @@ def main():
         full_server_command = [os.path.join(server_path, server_command[0])] + server_command[1:]
     
     # Initialize MCP client with the prepared command
+    import shlex
     mcp_client = FixedMCPClient([
-        "/bin/bash", "-c", 
-        f"cd {server_path} && {' '.join(server_command)}"
+        "/bin/bash", "-c",
+        f"cd {shlex.quote(server_path)} && {' '.join(shlex.quote(arg) for arg in server_command)}"
     ])
     
     print("✅ Enhanced MCP Client initialized with auto-setup")
@@ -2895,7 +2896,7 @@ def main():
     print("🔧 Server environment auto-configured with requirements")
     
     try:
-        app.run(debug=False, host='0.0.0.0', port=4657)
+        app.run(debug=False, host='127.0.0.1', port=4657)
     except KeyboardInterrupt:
         print("\n🛑 Shutting down...")
         return 0
