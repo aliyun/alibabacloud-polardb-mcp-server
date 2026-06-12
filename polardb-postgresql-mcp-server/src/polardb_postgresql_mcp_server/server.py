@@ -12,7 +12,93 @@ from mcp.types import Resource, ResourceTemplate, Tool, TextContent
 from pydantic import AnyUrl
 from dotenv import load_dotenv
 import asyncio
+import re
 import sqlparse
+from psycopg import sql as psycopg_sql
+
+_IDENTIFIER_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*$')
+
+
+def _validate_identifier(name, kind="identifier"):
+    if not isinstance(name, str) or not _IDENTIFIER_RE.match(name):
+        raise ValueError(f"Invalid {kind}: {name!r}")
+    return name
+
+
+_RESTRICTED_KEYWORDS = {
+    "INSERT": "INSERT",
+    "COPY": "INSERT",
+    "DELETE": "DELETE",
+    "UPDATE": "UPDATE",
+    "CREATE": "DDL",
+    "ALTER": "DDL",
+    "DROP": "DDL",
+    "TRUNCATE": "DDL",
+    "GRANT": "DDL",
+    "REVOKE": "DDL",
+    "REINDEX": "DDL",
+    "VACUUM": "DDL",
+    "CLUSTER": "DDL",
+    "REFRESH": "DDL",
+    "DO": "DDL",
+    "CALL": "DDL",
+    "EXECUTE": "DDL",
+    "LOAD": "DDL",
+    "SECURITY": "DDL",
+}
+
+
+_DOLLAR_TAG_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)?\$")
+
+
+def _strip_dollar_quotes(sql_text):
+    """Replace $tag$...$tag$ bodies with bare whitespace-padded contents so
+    embedded statements inside DO/CREATE FUNCTION blocks are visible to the
+    keyword scanner. PostgreSQL dollar-quote tags must match exactly to close.
+    """
+    out = []
+    i = 0
+    n = len(sql_text)
+    while i < n:
+        m = _DOLLAR_TAG_RE.match(sql_text, i)
+        if not m:
+            out.append(sql_text[i])
+            i += 1
+            continue
+        tag = m.group(0)
+        end = sql_text.find(tag, m.end())
+        if end == -1:
+            # unterminated dollar quote; keep remainder as-is to be conservative
+            out.append(sql_text[m.end():])
+            break
+        out.append(" ")
+        out.append(sql_text[m.end():end])
+        out.append(" ")
+        i = end + len(tag)
+    return "".join(out)
+
+
+def get_sql_operations(sql_text):
+    """Return (set of restricted ops anywhere in sql, non-empty statement count)."""
+    normalized = _strip_dollar_quotes(sql_text)
+    parsed = sqlparse.parse(normalized)
+    statement_count = sum(
+        1 for s in parsed if s.token_first(skip_ws=True, skip_cm=True) is not None
+    )
+    operations = set()
+    for stmt in parsed:
+        for token in stmt.flatten():
+            if token.ttype is None:
+                continue
+            ttype_str = str(token.ttype)
+            if "Keyword" not in ttype_str:
+                continue
+            kw = token.value.upper()
+            if kw in _RESTRICTED_KEYWORDS:
+                operations.add(_RESTRICTED_KEYWORDS[kw])
+    return operations, statement_count
+
+
 enable_delete = False
 enable_update = False
 enable_insert = False
@@ -108,7 +194,7 @@ async def read_resource(uri: AnyUrl) -> str:
                     return "\n".join([row[0] for row in rows])
                 elif len(parts) == 2 and parts[1] == "tables":
                     #polardb-postgresql://{schema}/tables,list all tables in a schema
-                    query = f"""
+                    query = """
                    SELECT 
                         c.relname AS table_name,              
                         obj_description(c.oid) AS table_comment 
@@ -118,18 +204,18 @@ async def read_resource(uri: AnyUrl) -> str:
                         pg_namespace n ON n.oid = c.relnamespace
                     WHERE 
                         c.relkind = 'r'
-                        AND n.nspname = '{parts[0]}'               
+                        AND n.nspname = %s
                     ORDER BY 
                         c.relname;
                     """
-                    cursor.execute(query)
+                    cursor.execute(query, (parts[0],))
                     rows = cursor.fetchall()
                     return "\n".join([f"{row[0]} ({row[1]})" for row in rows])
                 elif len(parts) == 3 and parts[2] == "field":
                     # polardb-postgresql://{schema}/{table}/field,list all field info(name,type,comment) in a table
-                    schema = parts[0]
-                    table = parts[1]
-                    query = f"""
+                    schema = _validate_identifier(parts[0], "schema")
+                    table = _validate_identifier(parts[1], "table")
+                    query = """
                     SELECT a.attname AS column_name,              
                         pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type, 
                         col_description(a.attrelid, a.attnum) AS column_comment 
@@ -138,19 +224,22 @@ async def read_resource(uri: AnyUrl) -> str:
                     WHERE 
                         a.attnum > 0                            
                         AND NOT a.attisdropped                  
-                        AND a.attrelid = '{schema}.{table}'::regclass 
+                        AND a.attrelid = %s::regclass 
                     ORDER BY 
                         a.attnum;   
                     """
-                    cursor.execute(query)
+                    cursor.execute(query, (f"{schema}.{table}",))
                     rows = cursor.fetchall()
                     result = [",".join(map(str, row)) for row in rows]
                     return "\n".join(result)
                 elif len(parts) == 3 and parts[2] == "data":
                     # polardb-postgresql://{schema}/{table}/data,list all data in a table
-                    schema = parts[0]
-                    table = parts[1]
-                    query = f"SELECT * FROM {schema}.{table} LIMIT 50"
+                    schema = _validate_identifier(parts[0], "schema")
+                    table = _validate_identifier(parts[1], "table")
+                    query = psycopg_sql.SQL("SELECT * FROM {}.{} LIMIT 50").format(
+                        psycopg_sql.Identifier(schema),
+                        psycopg_sql.Identifier(table),
+                    )
                     cursor.execute(query)
                     rows = cursor.fetchall()
                     result = [",".join(map(str, row)) for row in rows]
@@ -183,74 +272,52 @@ async def list_tools() -> list[Tool]:
 
 
 def get_sql_operation_type(sql):
-    """
-    get sql operation type
-    :param sql: input sql
-    :return: return sql operation type ('INSERT', 'DELETE', 'UPDATE', 'DDL',  or 'OTHER')
-    """
-    parsed = sqlparse.parse(sql)
-    if not parsed:
-        return 'OTHER'  #parse sql failed
-
-    # get first statement
-    statement = parsed[0]
-    
-    # get first keyword
-    first_token = statement.token_first(skip_ws=True, skip_cm=True)
-    if not first_token:
-        return 'OTHER'
-
-    keyword = first_token.value.upper()  # convert to upper case for uniform comparison
-
-    # judge sql type
-    if keyword == 'INSERT':
-        return 'INSERT'
-    elif keyword == 'DELETE':
-        return 'DELETE'
-    elif keyword == 'UPDATE':
-        return 'UPDATE'
-    elif keyword in ('CREATE', 'ALTER', 'DROP', 'TRUNCATE'):
-        return 'DDL'
-    else:
-        return 'OTHER'
+    """Deprecated; retained for backwards compatibility with external callers."""
+    operations, _ = get_sql_operations(sql)
+    for op in ('INSERT', 'DELETE', 'UPDATE', 'DDL'):
+        if op in operations:
+            return op
+    return 'OTHER'
 def execute_sql(arguments: str) -> str:
     config = get_db_config()
     query = arguments.get("query")
     if not query:
         raise ValueError("Query is required")
-    operation_type = get_sql_operation_type(query)
-    logger.info(f"SQL operation type: {operation_type}")
+    operations, statement_count = get_sql_operations(query)
+    logger.info(f"SQL operations: {operations}, statements: {statement_count}")
+    if statement_count > 1:
+        logger.info("multi-statement queries are not allowed")
+        return [TextContent(type="text", text="Multi-statement queries are not allowed")]
     global enable_delete,enable_update,enable_insert,enable_ddl
-    if operation_type == 'INSERT' and not enable_insert:
+    if 'INSERT' in operations and not enable_insert:
         logger.info(f"INSERT operation is not enabled,please check POLARDB_POSTGRESQL_ENABLE_INSERT")
         return [TextContent(type="text", text=f"INSERT operation is not enabled in current tool")]
-    elif operation_type == 'UPDATE' and not enable_update:
+    if 'UPDATE' in operations and not enable_update:
         logger.info(f"UPDATE operation is not enabled,please check POLARDB_POSTGRESQL_ENABLE_UPDATE")
         return [TextContent(type="text", text=f"UPDATE operation is not enabled in current tool")]
-    elif operation_type == 'DELETE' and not enable_delete:
+    if 'DELETE' in operations and not enable_delete:
         logger.info(f"DELETE operation is not enabled,please check POLARDB_POSTGRESQL_ENABLE_DELETE")
         return [TextContent(type="text", text=f"DELETE operation is not enabled in current tool")]
-    elif operation_type == 'DDL' and not enable_ddl:
+    if 'DDL' in operations and not enable_ddl:
         logger.info(f"DDL operation is not enabled,please check POLARDB_POSTGRESQL_ENABLE_DDL")
-        return [TextContent(type="text", text=f"DDL operation is not enabled in current tool")] 
-    else:   
-        logger.info(f"will Executing SQL: {query}")
-        try:
-            with psycopg.connect(**config) as conn:
-                conn.autocommit = True
-                with conn.cursor() as cursor:
-                    cursor.execute(query)
-                    if cursor.description is not None:
-                        columns = [desc[0] for desc in cursor.description]
-                        rows = cursor.fetchall()
-                        result = [",".join(map(str, row)) for row in rows]
-                        return [TextContent(type="text", text="\n".join([",".join(columns)] + result))]
-                    else:
-                        conn.commit()
-                        return [TextContent(type="text", text=f"Query executed successfully")]
-        except Error as e:
-            logger.error(f"Error executing SQL '{query}': {e}")
-            return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
+        return [TextContent(type="text", text=f"DDL operation is not enabled in current tool")]
+    logger.info(f"will Executing SQL: {query}")
+    try:
+        with psycopg.connect(**config) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+                if cursor.description is not None:
+                    columns = [desc[0] for desc in cursor.description]
+                    rows = cursor.fetchall()
+                    result = [",".join(map(str, row)) for row in rows]
+                    return [TextContent(type="text", text="\n".join([",".join(columns)] + result))]
+                else:
+                    conn.commit()
+                    return [TextContent(type="text", text=f"Query executed successfully")]
+    except Error as e:
+        logger.error(f"Error executing SQL '{query}': {e}")
+        return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")

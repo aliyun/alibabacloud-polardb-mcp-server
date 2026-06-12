@@ -13,8 +13,120 @@ from pydantic import AnyUrl
 from dotenv import load_dotenv
 from polardb_mysql_mcp_server.doc_import import DocImport
 import asyncio
+import re
 import sqlparse
 import numbers
+
+_IDENTIFIER_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*$')
+
+
+def _validate_identifier(name, kind="identifier"):
+    if not isinstance(name, str) or not _IDENTIFIER_RE.match(name):
+        raise ValueError(f"Invalid {kind}: {name!r}")
+    return name
+
+
+def _quote_identifier(name, kind="identifier"):
+    safe = _validate_identifier(name, kind)
+    return "`" + safe.replace("`", "``") + "`"
+
+
+def _validate_identifier_list(value, kind="column"):
+    if not isinstance(value, str):
+        raise ValueError(f"Invalid {kind} list: {value!r}")
+    parts = [p.strip() for p in value.split(",") if p.strip()]
+    if not parts:
+        raise ValueError(f"Empty {kind} list")
+    for p in parts:
+        _validate_identifier(p, kind)
+    return ",".join(parts)
+
+
+_ALLOWED_MODEL_CLASSES = {
+    "lightgbm", "deepfm", "kmeans", "randomforestreg",
+    "gbrt", "gbdt", "linearreg", "svr", "bst",
+}
+
+
+def _escape_sql_string(value):
+    if not isinstance(value, str):
+        raise ValueError("expected string")
+    if "\x00" in value:
+        raise ValueError("NUL byte not allowed in SQL string")
+    return (
+        value.replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace("\x1a", "\\Z")
+    )
+
+
+_RESTRICTED_KEYWORDS = {
+    "INSERT": "INSERT",
+    "REPLACE": "INSERT",
+    "LOAD": "INSERT",
+    "DELETE": "DELETE",
+    "UPDATE": "UPDATE",
+    "CREATE": "DDL",
+    "ALTER": "DDL",
+    "DROP": "DDL",
+    "TRUNCATE": "DDL",
+    "RENAME": "DDL",
+    "GRANT": "DDL",
+    "REVOKE": "DDL",
+    "CALL": "DDL",
+    "HANDLER": "DDL",
+}
+
+
+_MYSQL_EXEC_COMMENT_RE = re.compile(r"/\*!\d*\s?", re.IGNORECASE)
+
+
+def _strip_mysql_exec_comments(sql):
+    """Unwrap MySQL conditional-execution comments like /*!50000 DELETE ... */
+    so sqlparse sees the embedded statement body. Returns the rewritten sql.
+    """
+    out = []
+    i = 0
+    n = len(sql)
+    while i < n:
+        m = _MYSQL_EXEC_COMMENT_RE.match(sql, i)
+        if not m:
+            out.append(sql[i])
+            i += 1
+            continue
+        # find matching */
+        end = sql.find("*/", m.end())
+        if end == -1:
+            # malformed, treat as opaque comment; keep as-is to be safe
+            out.append(sql[i:])
+            break
+        out.append(" ")
+        out.append(sql[m.end():end])
+        out.append(" ")
+        i = end + 2
+    return "".join(out)
+
+
+def get_sql_operations(sql):
+    """Return (set of restricted ops anywhere in sql, non-empty statement count)."""
+    normalized = _strip_mysql_exec_comments(sql)
+    parsed = sqlparse.parse(normalized)
+    statement_count = sum(
+        1 for s in parsed if s.token_first(skip_ws=True, skip_cm=True) is not None
+    )
+    operations = set()
+    for stmt in parsed:
+        for token in stmt.flatten():
+            if token.ttype is None:
+                continue
+            if "Keyword" not in str(token.ttype):
+                continue
+            kw = token.value.upper()
+            if kw in _RESTRICTED_KEYWORDS:
+                operations.add(_RESTRICTED_KEYWORDS[kw])
+    return operations, statement_count
+
+
 enable_delete = False
 enable_update = False
 enable_insert = False
@@ -123,18 +235,27 @@ async def read_resource(uri: AnyUrl) -> str:
         elif len(parts) == 2 and (parts[1] == "data" or parts[1] == 'field'):
             config = get_db_config()
             table = parts[0]
+            try:
+                _validate_identifier(table, "table")
+            except ValueError as e:
+                logger.error(f"Invalid table name in URI: {table!r}")
+                raise ValueError(str(e))
             resource_type = parts[1]
             try:
                 with connect(**config) as conn:
                     with conn.cursor() as cursor:
                         if resource_type == "data":
-                            cursor.execute(f"SELECT * FROM {table} LIMIT 50")
+                            cursor.execute(f"SELECT * FROM {_quote_identifier(table, 'table')} LIMIT 50")
                             columns = [desc[0] for desc in cursor.description]
                             rows = cursor.fetchall()
                             result = [",".join(map(str, row)) for row in rows]
                             return "\n".join([",".join(columns)] + result)
                         elif resource_type == "field":
-                            cursor.execute(f"SELECT COLUMN_NAME,COLUMN_TYPE,COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{config['database']}' AND TABLE_NAME = '{table}'")
+                            cursor.execute(
+                                "SELECT COLUMN_NAME,COLUMN_TYPE,COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS "
+                                "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+                                (config['database'], table),
+                            )
                             rows = cursor.fetchall()
                             result = [",".join(map(str, row)) for row in rows]
                             return "\n".join(result)
@@ -332,6 +453,7 @@ def polar4ai_update_index_for_text_2_sql(arguments: str, index_table_name='schem
     force_update = arguments.get("force_update")
     if force_update is None:
         raise ValueError("force_update is required for tool polar4ai_update_index_for_text_2_sql")
+    _validate_identifier(index_table_name, "index_table_name")
     table_sql = f'/*polar4ai*/show tables;'
     rows, ok = exec_sql(config, table_sql)
     if not ok:
@@ -367,12 +489,17 @@ def polar4ai_text_2_sql(arguments: str,index_table_name='schema_index'):
     text = arguments.get("text")
     if not text:
         raise ValueError("text is required for tool polar4ai_text_2_sql")
-    sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT '{text}') WITH (basic_index_name='{index_table_name}')";
+    _validate_identifier(index_table_name, "index_table_name")
+    safe_text = _escape_sql_string(text)
+    sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT '{safe_text}') WITH (basic_index_name='{index_table_name}')";
     rows, ok = exec_sql(config, sql)
     if ok and len(rows) == 1:
         return [TextContent(type="text", text=f"{rows[0][0]}")]
     else :
         raise ValueError("Error executing SQL '/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT xxxx'")
+_ALLOWED_CHART_TYPES = {"柱状图", "折线图", "饼状图"}
+
+
 def polar4ai_text_2_chart(arguments: str,index_table_name='schema_index'):
     config = get_db_config()
     text = arguments.get("text")
@@ -381,14 +508,19 @@ def polar4ai_text_2_chart(arguments: str,index_table_name='schema_index'):
         raise ValueError("text is required for tool polar4ai_text_2_chart")
     if not chart_type:
         chart_type='柱状图'
-    sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT '{text}') WITH (basic_index_name='{index_table_name}')";
+    if chart_type not in _ALLOWED_CHART_TYPES:
+        raise ValueError(f"Invalid chart_type: {chart_type!r}")
+    _validate_identifier(index_table_name, "index_table_name")
+    safe_text = _escape_sql_string(text)
+    safe_chart = _escape_sql_string(chart_type)
+    sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT '{safe_text}') WITH (basic_index_name='{index_table_name}')";
     rows, ok = exec_sql(config, sql)
     if ok and len(rows) == 1:
         sql = rows[0][0]
     else:
         ValueError("Error executing SQL '/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2sql, SELECT xxxx'")
     sql = sql.replace(";","")
-    chart_sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2chart,{sql}) WITH (usr_query = '{text},{chart_type}', result_type = 'IMAGE');"
+    chart_sql = f"/*polar4ai*/SELECT * FROM PREDICT (MODEL _polar4ai_nl2chart,{sql}) WITH (usr_query = '{safe_text},{safe_chart}', result_type = 'IMAGE');"
     rows, ok = exec_sql(config, chart_sql)
     if ok and len(rows) == 1:
         return [TextContent(type="text", text=f"{rows[0][0]}")]
@@ -403,87 +535,81 @@ def polar4ai_create_models(model: dict) -> list[TextContent]:
     logger.info(str(model))
     logger.info(f"Reading polar4ai_create_models")
     try:
+        model_name = _validate_identifier(str(model['model_name']), "model_name")
+        table_name = _validate_identifier(str(model['table_name']), "table_name")
+        model_class = str(model['model_class'])
+        if model_class not in _ALLOWED_MODEL_CLASSES:
+            raise ValueError(f"Invalid model_class: {model_class!r}")
+        x_cols = _validate_identifier_list(str(model['x_cols']), "x_cols")
+        y_cols = _validate_identifier_list(str(model['y_cols']), "y_cols")
+    except (KeyError, ValueError) as e:
+        logger.error(f"Invalid model arguments: {e}")
+        return [TextContent(type="text", text=f"创建模型失败: {e}")]
+    try:
         with connect(**config) as conn:
             with conn.cursor() as cursor:
-                query_str = "/*polar4ai*/CREATE MODEL "+str(model['model_name'])+" WITH (model_class = \'"+str(model['model_class'])+"\',x_cols = \'"+str(model['x_cols'])+"\',y_cols=\'"+str(model['y_cols'])+"\')AS (SELECT * FROM "+str(model['table_name'])+");"
+                query_str = (
+                    f"/*polar4ai*/CREATE MODEL {model_name} "
+                    f"WITH (model_class = '{model_class}',"
+                    f"x_cols = '{x_cols}',y_cols='{y_cols}')"
+                    f"AS (SELECT * FROM {_quote_identifier(table_name, 'table_name')});"
+                )
                 cursor.execute(query_str)
                 logger.info("create model ok")
-                return [TextContent(type="text", text=f"创建{str(model['model_name'])}模型成功")]
-                
+                return [TextContent(type="text", text=f"创建{model_name}模型成功")]
+
     except Error as e:
         logger.error(f"Database error polar4ai : {str(e)}")
-        return [TextContent(type="text", text=f"创建{str(model['model_name'])}模型失败")]
+        return [TextContent(type="text", text=f"创建模型失败")]
 
 
 def get_sql_operation_type(sql):
-    """
-    get sql operation type
-    :param sql: input sql
-    :return: return sql operation type ('INSERT', 'DELETE', 'UPDATE', 'DDL',  or 'OTHER')
-    """
-    parsed = sqlparse.parse(sql)
-    if not parsed:
-        return 'OTHER'  #parse sql failed
-
-    # get first statement
-    statement = parsed[0]
-    
-    # get first keyword
-    first_token = statement.token_first(skip_ws=True, skip_cm=True)
-    if not first_token:
-        return 'OTHER'
-
-    keyword = first_token.value.upper()  # convert to upper case for uniform comparison
-
-    # judge sql type
-    if keyword == 'INSERT':
-        return 'INSERT'
-    elif keyword == 'DELETE':
-        return 'DELETE'
-    elif keyword == 'UPDATE':
-        return 'UPDATE'
-    elif keyword in ('CREATE', 'ALTER', 'DROP', 'TRUNCATE'):
-        return 'DDL'
-    else:
-        return 'OTHER'
+    """Deprecated; retained for backwards compatibility with external callers."""
+    operations, _ = get_sql_operations(sql)
+    for op in ('INSERT', 'DELETE', 'UPDATE', 'DDL'):
+        if op in operations:
+            return op
+    return 'OTHER'
 
 def execute_sql(arguments: str) -> str:
     config = get_db_config()
     query = arguments.get("query")
     if not query:
         raise ValueError("query is required for tool execute_sql")
-    operation_type = get_sql_operation_type(query)
-    logger.info(f"SQL operation type: {operation_type}")
+    operations, statement_count = get_sql_operations(query)
+    logger.info(f"SQL operations: {operations}, statements: {statement_count}")
+    if statement_count > 1:
+        logger.info("multi-statement queries are not allowed")
+        return [TextContent(type="text", text="Multi-statement queries are not allowed")]
     global enable_delete,enable_update,enable_insert,enable_ddl
-    if operation_type == 'INSERT' and not enable_insert:
+    if 'INSERT' in operations and not enable_insert:
         logger.info(f"INSERT operation is not enabled,please check POLARDB_MYSQL_ENABLE_INSERT")
         return [TextContent(type="text", text=f"INSERT operation is not enabled in current tool")]
-    elif operation_type == 'UPDATE' and not enable_update:
+    if 'UPDATE' in operations and not enable_update:
         logger.info(f"UPDATE operation is not enabled,please check POLARDB_MYSQL_ENABLE_UPDATE")
         return [TextContent(type="text", text=f"UPDATE operation is not enabled in current tool")]
-    elif operation_type == 'DELETE' and not enable_delete:
+    if 'DELETE' in operations and not enable_delete:
         logger.info(f"DELETE operation is not enabled,please check POLARDB_MYSQL_ENABLE_DELETE")
         return [TextContent(type="text", text=f"DELETE operation is not enabled in current tool")]
-    elif operation_type == 'DDL' and not enable_ddl:
+    if 'DDL' in operations and not enable_ddl:
         logger.info(f"DDL operation is not enabled,please check POLARDB_MYSQL_ENABLE_DDL")
-        return [TextContent(type="text", text=f"DDL operation is not enabled in current tool")] 
-    else:   
-        logger.info(f"will Executing SQL: {query}")
-        try:
-            with connect(**config) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query)
-                    if cursor.description is not None:
-                        columns = [desc[0] for desc in cursor.description]
-                        rows = cursor.fetchall()
-                        result = [",".join(map(str, row)) for row in rows]
-                        return [TextContent(type="text", text="\n".join([",".join(columns)] + result))]
-                    else:
-                        conn.commit()
-                        return [TextContent(type="text", text=f"Query executed successfully. Rows affected: {cursor.rowcount}")]
-        except Error as e:
-            logger.error(f"Error executing SQL '{query}': {e}")
-            return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
+        return [TextContent(type="text", text=f"DDL operation is not enabled in current tool")]
+    logger.info(f"will Executing SQL: {query}")
+    try:
+        with connect(**config) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+                if cursor.description is not None:
+                    columns = [desc[0] for desc in cursor.description]
+                    rows = cursor.fetchall()
+                    result = [",".join(map(str, row)) for row in rows]
+                    return [TextContent(type="text", text="\n".join([",".join(columns)] + result))]
+                else:
+                    conn.commit()
+                    return [TextContent(type="text", text=f"Query executed successfully. Rows affected: {cursor.rowcount}")]
+    except Error as e:
+        logger.error(f"Error executing SQL '{query}': {e}")
+        return [TextContent(type="text", text=f"Error executing query: {str(e)}")]
 
 def polar4ai_import_doc(arguments: str):
     dir_path = arguments.get("dir")

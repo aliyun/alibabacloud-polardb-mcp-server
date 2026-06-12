@@ -1,6 +1,6 @@
 [project]
 name = "polardb-postgresql-mcp-server"
-version = "1.0.0"
+version = "1.2.0"
 description = "Add your description here"
 readme = "README_pypi.md"
 requires-python = ">=3.12"
@@ -22,8 +22,7 @@ build-backend = "setuptools.build_meta"
 find = { where = ["src"] }
 
 [project.scripts]
-run_polardb_postgresql_mcp_server= "polardb_postgresql_mcp_server:main"
-
+polardb-postgresql-mcp-server = "polardb_postgresql_mcp_server.server:main"
 
 [tool.pytest.ini_options]
 pythonpath = "src"

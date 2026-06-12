@@ -4,10 +4,39 @@ import mammoth
 from mysql.connector import connect, Error
 import logging
 import os
+import re
 import time
 import json
 logger = logging.getLogger("polardb-mysql-mcp-server")
 DEFAULT_TABLE_NAME = "default_knowledge_base"
+
+_IDENTIFIER_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*$')
+
+
+def _validate_identifier(name, kind="identifier"):
+    if not isinstance(name, str) or not _IDENTIFIER_RE.match(name):
+        raise ValueError(f"Invalid {kind}: {name!r}")
+    return name
+
+
+def _quote_identifier(name, kind="identifier"):
+    safe = _validate_identifier(name, kind)
+    return "`" + safe.replace("`", "``") + "`"
+
+
+def _escape_sql_string(value):
+    if not isinstance(value, str):
+        raise ValueError("expected string")
+    if "\x00" in value:
+        raise ValueError("NUL byte not allowed in SQL string")
+    return (
+        value.replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace("\x1a", "\\Z")
+    )
+
+
+_VECTOR_RE = re.compile(r'^[\[\]\d.,eE+\-\s]+$')
 class DocImport:
     def __init__(self,db_config,chunk_size_ =500,chunk_overlap_=50):
         self.text_splitter = MarkdownTextSplitter(chunk_size=chunk_size_, chunk_overlap=chunk_overlap_)
@@ -29,7 +58,8 @@ class DocImport:
                 return contents
 
     def text_to_vect(self, text):
-        query_sql = f"/*polar4ai*/SELECT * FROM predict(model _polar4ai_text2vec, SELECT '{text}') with();"
+        safe_text = _escape_sql_string(text)
+        query_sql = f"/*polar4ai*/SELECT * FROM predict(model _polar4ai_text2vec, SELECT '{safe_text}') with();"
         rows, ok = self.exec_sql(query_sql)
         if ok:
             if len(rows) != 1:
@@ -78,9 +108,15 @@ class DocImport:
             table_name = DEFAULT_TABLE_NAME
         else:
             table_name = table
+        try:
+            _validate_identifier(table_name, "table_name")
+        except ValueError as e:
+            logger.error(f"Invalid table_name '{table_name}': {e}")
+            return f"Invalid table_name '{table_name}'"
         logger.info(f"table_name:{table_name}")
+        quoted_table = _quote_identifier(table_name, "table_name")
         create_table_sql = f"""
-            create table if not exists {table_name}(
+            create table if not exists {quoted_table}(
             id int unsigned auto_increment,
             chunk_content text, 
             file_name varchar(256),
@@ -103,9 +139,15 @@ class DocImport:
                 text = self.text_deal(text)
                 vec = self.text_to_vect(text)
                 if vec != "":
-                    insert_sql = f"""
-                        insert into {table_name} (chunk_content, file_name, vecs) values ('{text}', '{file_name}', string_to_vector(\"{vec}\"))
-                    """
+                    if not _VECTOR_RE.match(vec):
+                        logger.error("Refusing to insert non-numeric vector literal")
+                        continue
+                    safe_text = _escape_sql_string(text)
+                    safe_file = _escape_sql_string(file_name)
+                    insert_sql = (
+                        f"insert into {quoted_table} (chunk_content, file_name, vecs) "
+                        f"values ('{safe_text}', '{safe_file}', string_to_vector(\"{vec}\"))"
+                    )
                     rows, ok = self.exec_sql(insert_sql)
                     if not ok:
                         logger.error(f"Error inserting into table '{table_name}'")
@@ -121,9 +163,27 @@ class DocImport:
             table_name = DEFAULT_TABLE_NAME
         else:
             table_name = table
-        query_sql = f"""
-           /*force_imci*/ select file_name,chunk_content, distance(string_to_vector(\"{vec}\"), vecs, \"COSINE\") as d from {table_name} order by d limit {count};
-            """
+        try:
+            _validate_identifier(table_name, "table_name")
+        except ValueError as e:
+            logger.error(f"Invalid table_name '{table_name}': {e}")
+            return []
+        try:
+            count = int(count)
+        except (TypeError, ValueError):
+            logger.error(f"Invalid count {count!r}, falling back to 5")
+            count = 5
+        if count <= 0 or count > 1000:
+            count = 5
+        if vec == "" or not _VECTOR_RE.match(vec):
+            logger.error("No usable vector for query")
+            return []
+        quoted_table = _quote_identifier(table_name, "table_name")
+        query_sql = (
+            f"/*force_imci*/ select file_name,chunk_content, "
+            f"distance(string_to_vector(\"{vec}\"), vecs, \"COSINE\") as d "
+            f"from {quoted_table} order by d limit {count};"
+        )
         rows, ok = self.exec_sql(query_sql)
         result = []
         if ok:
