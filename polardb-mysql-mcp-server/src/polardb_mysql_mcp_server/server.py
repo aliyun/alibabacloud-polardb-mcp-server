@@ -144,7 +144,8 @@ def get_db_config():
         "port": int(os.getenv("POLARDB_MYSQL_PORT", "3306")),
         "user": os.getenv("POLARDB_MYSQL_USER"),
         "password": os.getenv("POLARDB_MYSQL_PASSWORD"),
-        "database": os.getenv("POLARDB_MYSQL_DATABASE")
+        "database": os.getenv("POLARDB_MYSQL_DATABASE"),
+        "read_timeout": int(os.getenv("POLARDB_MYSQL_READ_TIMEOUT", "60")),
     }
     
     if not all([config["user"], config["password"], config["database"]]):
@@ -642,23 +643,22 @@ def polar4ai_search_doc(arguments: str):
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
     if name == "execute_sql":
-        return execute_sql(arguments)
+        return await asyncio.to_thread(execute_sql, arguments)
     elif name == "polar4ai_update_index_for_text_2_sql":
-        return polar4ai_update_index_for_text_2_sql(arguments)
+        return await asyncio.to_thread(polar4ai_update_index_for_text_2_sql, arguments)
     elif name == "polar4ai_text_2_sql":
-        return polar4ai_text_2_sql(arguments)
+        return await asyncio.to_thread(polar4ai_text_2_sql, arguments)
     elif name == "polar4ai_text_2_chart":
-        return polar4ai_text_2_chart(arguments)
+        return await asyncio.to_thread(polar4ai_text_2_chart, arguments)
     elif name == "polar4ai_create_models":
-        # Extract the query_dict from arguments
         query_dict = arguments.get("model")
         if query_dict is None:
             raise ValueError("Missing 'query_dict' in arguments")
-        return polar4ai_create_models(query_dict)
+        return await asyncio.to_thread(polar4ai_create_models, query_dict)
     elif name == "polar4ai_import_doc":
-        return polar4ai_import_doc(arguments)
+        return await asyncio.to_thread(polar4ai_import_doc, arguments)
     elif name == "polar4ai_search_doc":
-        return polar4ai_search_doc(arguments)
+        return await asyncio.to_thread(polar4ai_search_doc, arguments)
     else:
         logger.error(f"Unknown tool: {name}")
         raise ValueError(f"Unknown tool: {name}")

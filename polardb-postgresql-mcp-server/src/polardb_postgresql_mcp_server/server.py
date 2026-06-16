@@ -111,13 +111,15 @@ logger = logging.getLogger("polardb-postgresql-mcp-server")
 VERSION = "0.0.1"
 def get_db_config():
     """Get database configuration from environment variables."""
+    statement_timeout_s = int(os.getenv("POLARDB_POSTGRESQL_STATEMENT_TIMEOUT", "60"))
     config = {
         "host": os.getenv("POLARDB_POSTGRESQL_HOST", "localhost"),
         "port": int(os.getenv("POLARDB_POSTGRESQL_PORT", "5432")),
         "user": os.getenv("POLARDB_POSTGRESQL_USER"),
         "password": os.getenv("POLARDB_POSTGRESQL_PASSWORD"),
         "dbname": os.getenv("POLARDB_POSTGRESQL_DBNAME"),
-        "application_name": f"polardb-postgresql-mcp-server-{VERSION}"
+        "application_name": f"polardb-postgresql-mcp-server-{VERSION}",
+        "options": f"-c statement_timeout={statement_timeout_s * 1000}",
     }
     
     if not all([config["user"], config["password"], config["dbname"]]):
@@ -322,7 +324,7 @@ def execute_sql(arguments: str) -> str:
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.info(f"Calling tool: {name} with arguments: {arguments}")
     if name == "execute_sql":
-        return execute_sql(arguments)
+        return await asyncio.to_thread(execute_sql, arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
    
